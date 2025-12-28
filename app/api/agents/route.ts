@@ -77,6 +77,22 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Validate agentConfig
+    if (!agentConfig) {
+      return NextResponse.json(
+        { error: 'Failed to generate agent configuration. Please try again.' },
+        { status: 500 }
+      )
+    }
+
+    if (!agentConfig.systemPrompt || typeof agentConfig.systemPrompt !== 'string') {
+      console.error('Invalid agentConfig:', agentConfig)
+      return NextResponse.json(
+        { error: 'Invalid agent configuration generated. Please try again.' },
+        { status: 500 }
+      )
+    }
+
     // Step 2: Create assistant in Vapi
     const { createAssistant } = await import('@/lib/vapi/client')
     const vapiApiKey = process.env.VAPI_API_KEY
@@ -88,11 +104,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Generate a safe name from systemPrompt or use provided name
+    const agentName = name || agentConfig.systemPrompt.substring(0, 50) || 'Untitled Agent'
+    const firstMessage = agentConfig.systemPrompt || description
+
     let vapiAssistant
     try {
       vapiAssistant = await createAssistant(vapiApiKey, {
-        name: name || agentConfig.systemPrompt.substring(0, 50),
-        firstMessage: agentConfig.systemPrompt, // Vapi uses firstMessage instead of systemPrompt
+        name: agentName,
+        firstMessage: firstMessage, // Vapi uses firstMessage instead of systemPrompt
         voiceId: agentConfig.voiceId,
         model: 'gpt-4o',
       })
@@ -116,7 +136,7 @@ export async function POST(request: NextRequest) {
     const apiSecret = crypto.randomUUID().replace(/-/g, '')
 
     // Step 4: Save agent to database
-    const agentName = name || agentConfig.systemPrompt.substring(0, 50) || 'Untitled Agent'
+    // Use the agentName we already created above
     
     const { data: agent, error: agentError } = await supabase
       .from('agents')
