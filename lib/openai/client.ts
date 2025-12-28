@@ -22,9 +22,16 @@ export async function generateAgentConfig(
 ): Promise<AgentConfig> {
   const prompt = `You are an AI assistant that helps create voice AI agents for businesses. 
 Given a business description, generate:
-1. A system prompt that defines the agent's personality and behavior
-2. A recommended voice ID from Vapi's voice library (choose based on context: professional, friendly, etc.)
-3. Optional: JSON schema for function tools if needed
+1. A system prompt that defines the agent's personality and behavior (be specific and detailed)
+2. A recommended voice ID from Vapi's voice library. Use one of these common voice IDs:
+   - "jennifer" (professional female)
+   - "michael" (professional male)
+   - "sarah" (friendly female)
+   - "david" (friendly male)
+   - "emily" (warm female)
+   - "james" (warm male)
+   Choose based on context: professional, friendly, warm, etc.
+3. Optional: JSON schema for function tools if needed (empty array if not needed)
 
 Business Description: ${userDescription}
 

@@ -54,22 +54,71 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, vapi_assistant_id, vapi_phone_number_id, system_prompt, voice_id } = body
+    const { description, name } = body
 
-    // Generate API secret
+    if (!description) {
+      return NextResponse.json(
+        { error: 'Description is required' },
+        { status: 400 }
+      )
+    }
+
+    // Step 1: Generate agent config using OpenAI
+    const { generateAgentConfig } = await import('@/lib/openai/client')
+    let agentConfig
+    try {
+      agentConfig = await generateAgentConfig(description)
+    } catch (error) {
+      console.error('OpenAI error:', error)
+      return NextResponse.json(
+        { error: 'Failed to generate agent configuration. Please try again.' },
+        { status: 500 }
+      )
+    }
+
+    // Step 2: Create assistant in Vapi
+    const { createAssistant } = await import('@/lib/vapi/client')
+    const vapiApiKey = process.env.VAPI_API_KEY
+    
+    if (!vapiApiKey) {
+      return NextResponse.json(
+        { error: 'Vapi API key not configured' },
+        { status: 500 }
+      )
+    }
+
+    let vapiAssistant
+    try {
+      vapiAssistant = await createAssistant(vapiApiKey, {
+        name: name || agentConfig.systemPrompt.substring(0, 50),
+        systemPrompt: agentConfig.systemPrompt,
+        voiceId: agentConfig.voiceId,
+        model: 'gpt-4o',
+      })
+    } catch (error) {
+      console.error('Vapi error:', error)
+      return NextResponse.json(
+        { error: 'Failed to create Vapi assistant. Please check your Vapi API key.' },
+        { status: 500 }
+      )
+    }
+
+    // Step 3: Generate API secret
     const apiSecret = crypto.randomUUID().replace(/-/g, '')
 
-    // Create agent
+    // Step 4: Save agent to database
+    const agentName = name || agentConfig.systemPrompt.substring(0, 50) || 'Untitled Agent'
+    
     const { data: agent, error: agentError } = await supabase
       .from('agents')
       .insert({
         user_id: user.id,
-        name: name || 'Untitled Agent',
-        vapi_assistant_id: vapi_assistant_id || null,
-        vapi_phone_number_id: vapi_phone_number_id || null,
+        name: agentName,
+        vapi_assistant_id: vapiAssistant.id,
+        vapi_phone_number_id: null, // Can be added later
         api_secret: apiSecret,
-        system_prompt: system_prompt || null,
-        voice_id: voice_id || null,
+        system_prompt: agentConfig.systemPrompt,
+        voice_id: agentConfig.voiceId || null,
       })
       .select()
       .single()
@@ -77,7 +126,7 @@ export async function POST(request: NextRequest) {
     if (agentError) {
       console.error('Error creating agent:', agentError)
       return NextResponse.json(
-        { error: 'Failed to create agent' },
+        { error: 'Failed to save agent to database' },
         { status: 500 }
       )
     }
