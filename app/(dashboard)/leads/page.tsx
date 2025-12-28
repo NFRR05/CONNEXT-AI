@@ -302,25 +302,25 @@ export default function LeadsPage() {
                       setIsModalOpen(true)
                     }}>
                       <TableCell>
-                        <Select
-                          value={lead.status}
-                          onValueChange={(value: 'New' | 'Contacted' | 'Closed') => {
-                            updateLeadStatus(lead.id, value)
-                            event?.stopPropagation()
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <SelectTrigger className="h-8 w-[100px] border-0 p-0">
-                            <Badge variant={getStatusBadgeVariant(lead.status) as any}>
-                              {lead.status}
-                            </Badge>
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="New">New</SelectItem>
-                            <SelectItem value="Contacted">Contacted</SelectItem>
-                            <SelectItem value="Closed">Closed</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <Select
+                            value={lead.status}
+                            onValueChange={(value: 'New' | 'Contacted' | 'Closed') => {
+                              updateLeadStatus(lead.id, value)
+                            }}
+                          >
+                            <SelectTrigger className="h-8 w-[100px] border-0 p-0">
+                              <Badge variant={getStatusBadgeVariant(lead.status) as any}>
+                                {lead.status}
+                              </Badge>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="New">New</SelectItem>
+                              <SelectItem value="Contacted">Contacted</SelectItem>
+                              <SelectItem value="Closed">Closed</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </TableCell>
                       <TableCell className="font-medium">{lead.agents.name}</TableCell>
                       <TableCell>
