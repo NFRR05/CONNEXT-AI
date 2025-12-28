@@ -25,24 +25,58 @@ export async function createAssistant(
   apiKey: string,
   params: CreateAssistantParams
 ): Promise<Assistant> {
+  // Validate API key format
+  if (!apiKey || apiKey.trim() === '') {
+    throw new Error('Vapi API key is required')
+  }
+
+  const requestBody = {
+    name: params.name,
+    systemPrompt: params.systemPrompt,
+    voiceId: params.voiceId,
+    model: params.model || 'gpt-4o',
+    firstMessage: params.firstMessage,
+  }
+
+  // Log request for debugging (without sensitive data)
+  console.log('Creating Vapi assistant:', {
+    url: `${VAPI_API_URL}/assistant`,
+    hasApiKey: !!apiKey,
+    apiKeyLength: apiKey.length,
+    requestBody: { ...requestBody, systemPrompt: requestBody.systemPrompt.substring(0, 50) + '...' },
+  })
+
   const response = await fetch(`${VAPI_API_URL}/assistant`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({
-      name: params.name,
-      systemPrompt: params.systemPrompt,
-      voiceId: params.voiceId,
-      model: params.model || 'gpt-4o',
-      firstMessage: params.firstMessage,
-    }),
+    body: JSON.stringify(requestBody),
   })
 
   if (!response.ok) {
-    const error = await response.json()
-    throw new Error(`Vapi API error: ${error.message || response.statusText}`)
+    let errorMessage = `Vapi API error: ${response.status} ${response.statusText}`
+    try {
+      const error = await response.json()
+      errorMessage = `Vapi API error: ${error.message || error.error || response.statusText} (Status: ${response.status})`
+      // Log full error for debugging
+      console.error('Vapi API error details:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: error,
+      })
+    } catch (e) {
+      // If response is not JSON, try to get text
+      try {
+        const text = await response.text()
+        errorMessage = `Vapi API error: ${text || response.statusText} (Status: ${response.status})`
+      } catch (e2) {
+        // Fallback to status text
+        errorMessage = `Vapi API error: ${response.status} ${response.statusText}`
+      }
+    }
+    throw new Error(errorMessage)
   }
 
   return response.json()

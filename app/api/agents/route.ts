@@ -98,8 +98,16 @@ export async function POST(request: NextRequest) {
       })
     } catch (error) {
       console.error('Vapi error:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create Vapi assistant'
+      // Provide more helpful error message
+      if (errorMessage.includes('401') || errorMessage.includes('Unauthorized')) {
+        return NextResponse.json(
+          { error: 'Invalid Vapi API key. Please check your VAPI_API_KEY environment variable in Vercel.' },
+          { status: 500 }
+        )
+      }
       return NextResponse.json(
-        { error: 'Failed to create Vapi assistant. Please check your Vapi API key.' },
+        { error: errorMessage },
         { status: 500 }
       )
     }
