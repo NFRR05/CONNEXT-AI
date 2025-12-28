@@ -1,0 +1,545 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { AgentSetupModal } from '@/components/agent-setup-modal'
+import { ArrowLeft, ArrowRight, CheckCircle2 } from 'lucide-react'
+import Link from 'next/link'
+import { cn } from '@/lib/utils'
+
+interface Agent {
+  id: string
+  name: string
+  vapi_assistant_id: string | null
+  vapi_phone_number_id: string | null
+  api_secret: string
+  system_prompt: string | null
+  voice_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+interface FormData {
+  businessType: string[]
+  agentPurpose: string[]
+  informationToCollect: string[]
+  tone: string[]
+  additionalInfo: string
+  businessName: string
+  agentName: string
+}
+
+const BUSINESS_TYPES = [
+  'Restaurant',
+  'Dental Clinic',
+  'Medical Practice',
+  'Law Firm',
+  'Real Estate',
+  'Fitness/Gym',
+  'Beauty Salon',
+  'Auto Repair',
+  'Home Services',
+  'Retail Store',
+  'Other'
+]
+
+const AGENT_PURPOSES = [
+  'Book Appointments',
+  'Answer Questions',
+  'Collect Customer Information',
+  'Provide Quotes/Estimates',
+  'Handle Complaints',
+  'Process Orders',
+  'Schedule Services',
+  'Qualify Leads'
+]
+
+const INFORMATION_TO_COLLECT = [
+  'Name',
+  'Phone Number',
+  'Email Address',
+  'Preferred Date/Time',
+  'Service Type',
+  'Location/Address',
+  'Budget/Price Range',
+  'Special Requirements',
+  'Insurance Information',
+  'Referral Source'
+]
+
+const TONES = [
+  'Professional & Formal',
+  'Friendly & Casual',
+  'Warm & Welcoming',
+  'Efficient & Direct',
+  'Empathetic & Caring',
+  'Enthusiastic & Energetic'
+]
+
+export default function CreateAgentPage() {
+  const router = useRouter()
+  const [step, setStep] = useState(1)
+  const [creating, setCreating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [setupModalOpen, setSetupModalOpen] = useState(false)
+  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
+  const [phoneNumbers, setPhoneNumbers] = useState<Record<string, string>>({})
+
+  const [formData, setFormData] = useState<FormData>({
+    businessType: [],
+    agentPurpose: [],
+    informationToCollect: [],
+    tone: [],
+    additionalInfo: '',
+    businessName: '',
+    agentName: ''
+  })
+
+  const totalSteps = 5
+
+  function updateFormData(field: keyof FormData, value: any) {
+    setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  function toggleArrayField(field: 'businessType' | 'agentPurpose' | 'informationToCollect' | 'tone', value: string) {
+    setFormData(prev => {
+      const current = prev[field]
+      const updated = current.includes(value)
+        ? current.filter(item => item !== value)
+        : [...current, value]
+      return { ...prev, [field]: updated }
+    })
+  }
+
+  function canProceedToNextStep(): boolean {
+    switch (step) {
+      case 1:
+        return formData.businessType.length > 0
+      case 2:
+        return formData.agentPurpose.length > 0
+      case 3:
+        return formData.informationToCollect.length > 0
+      case 4:
+        return formData.tone.length > 0
+      case 5:
+        return true // Additional info is optional
+      default:
+        return false
+    }
+  }
+
+  function generateDescription(): string {
+    const parts: string[] = []
+
+    // Business context
+    if (formData.businessName) {
+      parts.push(`Business: ${formData.businessName}`)
+    }
+    if (formData.businessType.length > 0) {
+      parts.push(`Business Type: ${formData.businessType.join(', ')}`)
+    }
+
+    // Purpose
+    if (formData.agentPurpose.length > 0) {
+      parts.push(`The agent should: ${formData.agentPurpose.join(', ').toLowerCase()}`)
+    }
+
+    // Information to collect
+    if (formData.informationToCollect.length > 0) {
+      parts.push(`The agent must collect the following information: ${formData.informationToCollect.join(', ').toLowerCase()}`)
+    }
+
+    // Tone
+    if (formData.tone.length > 0) {
+      parts.push(`Tone and personality: ${formData.tone.join(', ').toLowerCase()}`)
+    }
+
+    // Additional info
+    if (formData.additionalInfo.trim()) {
+      parts.push(`Additional requirements: ${formData.additionalInfo}`)
+    }
+
+    return parts.join('. ') + '.'
+  }
+
+  async function handleCreateAgent() {
+    setCreating(true)
+    setError(null)
+    setSuccess(null)
+
+    const description = generateDescription()
+
+    try {
+      const response = await fetch('/api/agents', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          description,
+          name: formData.agentName || undefined,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create agent')
+      }
+
+      setSuccess('Agent created successfully!')
+      
+      // Open setup modal for the newly created agent
+      if (data.agent) {
+        setSelectedAgent(data.agent)
+        setSetupModalOpen(true)
+      }
+    } catch (error) {
+      console.error('Error creating agent:', error)
+      setError(error instanceof Error ? error.message : 'Failed to create agent')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  function handlePhoneNumberProvisioned(agentId: string, phoneNumber: string) {
+    setPhoneNumbers((prev) => ({ ...prev, [agentId]: phoneNumber }))
+  }
+
+  function handleModalClose() {
+    setSetupModalOpen(false)
+    router.push('/agents')
+  }
+
+  function renderStep() {
+    switch (step) {
+      case 1:
+        return (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold mb-2">What type of business do you have?</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Select all that apply (you can select multiple)
+              </p>
+            </div>
+            <div className="space-y-2">
+              {BUSINESS_TYPES.map((type) => (
+                <label
+                  key={type}
+                  className={cn(
+                    'flex items-center space-x-3 p-3 rounded-lg border cursor-pointer transition-all',
+                    formData.businessType.includes(type)
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:bg-accent'
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={formData.businessType.includes(type)}
+                    onChange={() => toggleArrayField('businessType', type)}
+                    className="rounded border-gray-300"
+                  />
+                  <span className="text-sm font-medium">{type}</span>
+                </label>
+              ))}
+            </div>
+            {formData.businessType.includes('Other') && (
+              <div className="mt-4">
+                <Label htmlFor="businessName" className="text-sm">
+                  Please specify your business type
+                </Label>
+                <Input
+                  id="businessName"
+                  value={formData.businessName}
+                  onChange={(e) => updateFormData('businessName', e.target.value)}
+                  placeholder="e.g., Yoga Studio, Pet Grooming"
+                  className="mt-2"
+                />
+              </div>
+            )}
+          </div>
+        )
+
+      case 2:
+        return (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold mb-2">What should your agent do?</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Select all the tasks your agent should handle
+              </p>
+            </div>
+            <div className="space-y-2">
+              {AGENT_PURPOSES.map((purpose) => (
+                <label
+                  key={purpose}
+                  className={cn(
+                    'flex items-center space-x-3 p-3 rounded-lg border cursor-pointer transition-all',
+                    formData.agentPurpose.includes(purpose)
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:bg-accent'
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={formData.agentPurpose.includes(purpose)}
+                    onChange={() => toggleArrayField('agentPurpose', purpose)}
+                    className="rounded border-gray-300"
+                  />
+                  <span className="text-sm font-medium">{purpose}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )
+
+      case 3:
+        return (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold mb-2">What information should your agent collect?</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Select all the information you need from customers
+              </p>
+            </div>
+            <div className="space-y-2">
+              {INFORMATION_TO_COLLECT.map((info) => (
+                <label
+                  key={info}
+                  className={cn(
+                    'flex items-center space-x-3 p-3 rounded-lg border cursor-pointer transition-all',
+                    formData.informationToCollect.includes(info)
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:bg-accent'
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={formData.informationToCollect.includes(info)}
+                    onChange={() => toggleArrayField('informationToCollect', info)}
+                    className="rounded border-gray-300"
+                  />
+                  <span className="text-sm font-medium">{info}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )
+
+      case 4:
+        return (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold mb-2">How should your agent sound?</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Select the tone and personality that matches your brand
+              </p>
+            </div>
+            <div className="space-y-2">
+              {TONES.map((tone) => (
+                <label
+                  key={tone}
+                  className={cn(
+                    'flex items-center space-x-3 p-3 rounded-lg border cursor-pointer transition-all',
+                    formData.tone.includes(tone)
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:bg-accent'
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={formData.tone.includes(tone)}
+                    onChange={() => toggleArrayField('tone', tone)}
+                    className="rounded border-gray-300"
+                  />
+                  <span className="text-sm font-medium">{tone}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )
+
+      case 5:
+        return (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold mb-2">Final Details</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Add any additional information or specific requirements
+              </p>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="agentName" className="text-sm">
+                  Agent Name (Optional)
+                </Label>
+                <Input
+                  id="agentName"
+                  value={formData.agentName}
+                  onChange={(e) => updateFormData('agentName', e.target.value)}
+                  placeholder="e.g., Restaurant Booking Assistant"
+                  className="mt-2"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  A friendly name for your agent. We&apos;ll generate one if you leave this blank.
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="additionalInfo" className="text-sm">
+                  Additional Information (Optional)
+                </Label>
+                <textarea
+                  id="additionalInfo"
+                  value={formData.additionalInfo}
+                  onChange={(e) => updateFormData('additionalInfo', e.target.value)}
+                  placeholder="e.g., Only accept bookings during business hours (9 AM - 6 PM), Ask about dietary restrictions for restaurants, etc."
+                  rows={4}
+                  className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Add any specific rules, requirements, or special instructions for your agent.
+                </p>
+              </div>
+            </div>
+          </div>
+        )
+
+      default:
+        return null
+    }
+  }
+
+  return (
+    <div className="container mx-auto py-4 sm:py-6 md:py-10 px-4 sm:px-6 max-w-3xl">
+      <div className="mb-4 sm:mb-6">
+        <Link href="/agents">
+          <Button variant="ghost" className="mb-3 sm:mb-4 -ml-2 sm:ml-0">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            <span className="hidden sm:inline">Back to Agents</span>
+            <span className="sm:hidden">Back</span>
+          </Button>
+        </Link>
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold">Create New Agent</h1>
+          <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
+            Let&apos;s guide you through creating the perfect agent for your business
+          </p>
+        </div>
+      </div>
+
+      {/* Progress Bar */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs sm:text-sm text-muted-foreground">
+            Step {step} of {totalSteps}
+          </span>
+          <span className="text-xs sm:text-sm text-muted-foreground">
+            {Math.round((step / totalSteps) * 100)}% Complete
+          </span>
+        </div>
+        <div className="w-full bg-secondary rounded-full h-2">
+          <div
+            className="bg-primary h-2 rounded-full transition-all duration-300"
+            style={{ width: `${(step / totalSteps) * 100}%` }}
+          />
+        </div>
+      </div>
+
+      <Card>
+        <CardHeader className="pb-4">
+          <CardTitle className="text-lg sm:text-xl">
+            {step === 1 && 'Business Type'}
+            {step === 2 && 'Agent Purpose'}
+            {step === 3 && 'Information Collection'}
+            {step === 4 && 'Tone & Personality'}
+            {step === 5 && 'Final Details'}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 sm:px-6">
+          {error && (
+            <div className="rounded-md bg-destructive/15 p-3 text-xs sm:text-sm text-destructive break-words mb-4">
+              {error}
+            </div>
+          )}
+
+          {success && (
+            <div className="rounded-md bg-green-500/15 p-3 text-xs sm:text-sm text-green-600 dark:text-green-400 break-words mb-4">
+              {success}
+            </div>
+          )}
+
+          {renderStep()}
+
+          <div className="flex flex-col sm:flex-row gap-3 mt-8 pt-6 border-t">
+            {step > 1 && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setStep(step - 1)}
+                className="flex-1 sm:flex-initial sm:w-auto"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Previous
+              </Button>
+            )}
+            <div className="flex-1" />
+            {step < totalSteps ? (
+              <Button
+                type="button"
+                onClick={() => setStep(step + 1)}
+                disabled={!canProceedToNextStep()}
+                className="flex-1 sm:flex-initial sm:w-auto"
+              >
+                Next
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                onClick={handleCreateAgent}
+                disabled={creating || !canProceedToNextStep()}
+                className="flex-1 sm:flex-initial sm:w-auto"
+              >
+                {creating ? (
+                  <>
+                    <span className="hidden sm:inline">Creating Agent...</span>
+                    <span className="sm:hidden">Creating...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Create Agent
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Setup Modal */}
+      {selectedAgent && (
+        <AgentSetupModal
+          open={setupModalOpen}
+          onOpenChange={(open) => {
+            setSetupModalOpen(open)
+            if (!open) {
+              handleModalClose()
+            }
+          }}
+          agentId={selectedAgent.id}
+          agentName={selectedAgent.name}
+          phoneNumber={phoneNumbers[selectedAgent.id] || null}
+          onPhoneNumberProvisioned={(phoneNumber) =>
+            handlePhoneNumberProvisioned(selectedAgent.id, phoneNumber)
+          }
+        />
+      )}
+    </div>
+  )
+}
