@@ -44,12 +44,19 @@ export async function createAssistant(
     requestBody.firstMessage = params.systemPrompt
   }
 
-  // Add voice configuration if provided (Vapi expects voice object, not voiceId directly)
-  if (params.voiceId) {
-    requestBody.voice = {
-      provider: '11labs', // Default provider, adjust if needed
-      voiceId: params.voiceId,
-    }
+  // Add voice configuration if provided
+  // Note: Vapi supports multiple voice formats:
+  // 1. Vapi-provided voices: just use the voice ID as a string
+  // 2. Custom 11labs voices: requires provider configuration in Vapi dashboard
+  // For now, we'll omit voice to use Vapi's default, or use voiceId as string if provided
+  // This avoids the 11labs provider issue when using Vapi-provided voices
+  if (params.voiceId && params.voiceId.trim() !== '') {
+    // Use voice ID as string for Vapi-provided voices
+    // If you need custom 11labs voices, configure them in Vapi dashboard first
+    requestBody.voice = params.voiceId.trim()
+    console.log('[VAPI Client] Using voice ID:', params.voiceId)
+  } else {
+    console.log('[VAPI Client] No voice ID provided - Vapi will use default voice')
   }
 
   // Log request for debugging (without sensitive data)

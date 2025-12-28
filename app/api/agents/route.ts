@@ -216,18 +216,26 @@ export async function POST(request: NextRequest) {
 
     let vapiAssistant
     try {
-      console.log('[Agent Creation] Calling VAPI createAssistant with params:', {
-        name: agentName,
-        firstMessageLength: firstMessage.length,
-        voiceId: agentConfig.voiceId,
-        model: 'gpt-4o',
-      })
-      vapiAssistant = await createAssistant(vapiApiKey, {
+      const vapiParams: any = {
         name: agentName,
         firstMessage: firstMessage, // Vapi uses firstMessage instead of systemPrompt
-        voiceId: agentConfig.voiceId,
         model: 'gpt-4o',
+      }
+      
+      // Only add voiceId if it's provided and not null
+      if (agentConfig.voiceId) {
+        vapiParams.voiceId = agentConfig.voiceId
+      }
+      
+      console.log('[Agent Creation] Calling VAPI createAssistant with params:', {
+        name: vapiParams.name,
+        firstMessageLength: vapiParams.firstMessage.length,
+        hasVoiceId: !!vapiParams.voiceId,
+        voiceId: vapiParams.voiceId || 'using Vapi default',
+        model: vapiParams.model,
       })
+      
+      vapiAssistant = await createAssistant(vapiApiKey, vapiParams)
       console.log('[Agent Creation] VAPI assistant created successfully:', {
         assistantId: vapiAssistant.id,
         assistantName: vapiAssistant.name,

@@ -13,7 +13,7 @@ const openai = new OpenAI({
 
 export interface AgentConfig {
   systemPrompt: string
-  voiceId: string
+  voiceId?: string | null
   tools?: any[]
 }
 
@@ -34,22 +34,17 @@ export async function generateAgentConfig(
   const prompt = `You are an AI assistant that helps create voice AI agents for businesses. 
 Given a business description, generate:
 1. A system prompt that defines the agent's personality and behavior (be specific and detailed)
-2. A recommended voice ID from Vapi's voice library. Use one of these common voice IDs:
-   - "jennifer" (professional female)
-   - "michael" (professional male)
-   - "sarah" (friendly female)
-   - "david" (friendly male)
-   - "emily" (warm female)
-   - "james" (warm male)
-   Choose based on context: professional, friendly, warm, etc.
+2. A voice description (e.g., "professional female", "friendly male", "warm female") - this is just for reference, the actual voice will be selected automatically
 3. Optional: JSON schema for function tools if needed (empty array if not needed)
+
+Note: Do not provide a voiceId - leave it as null. The voice will be handled by the system automatically.
 
 Business Description: ${userDescription}
 
 Respond in JSON format:
 {
   "systemPrompt": "...",
-  "voiceId": "...",
+  "voiceId": null,
   "tools": []
 }`
 
@@ -93,14 +88,21 @@ Respond in JSON format:
         hasTools: !!parsed.tools,
       })
       
-      // Validate required fields
-      if (!parsed.systemPrompt || !parsed.voiceId) {
-        console.error('[OpenAI Client] Missing required fields in parsed config:', {
+      // Validate required fields (voiceId is optional)
+      if (!parsed.systemPrompt) {
+        console.error('[OpenAI Client] Missing required field in parsed config:', {
           hasSystemPrompt: !!parsed.systemPrompt,
           hasVoiceId: !!parsed.voiceId,
           parsed,
         })
-        throw new Error('Invalid response from OpenAI: missing required fields')
+        throw new Error('Invalid response from OpenAI: missing systemPrompt field')
+      }
+      
+      // Log if voiceId is provided or not
+      if (parsed.voiceId) {
+        console.log('[OpenAI Client] Voice ID provided:', parsed.voiceId)
+      } else {
+        console.log('[OpenAI Client] No voice ID provided - will use Vapi default voice')
       }
 
       console.log('[OpenAI Client] Agent config generated successfully')
