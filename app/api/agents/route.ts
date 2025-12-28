@@ -77,21 +77,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate agentConfig
+    // Validate agentConfig with detailed logging
     if (!agentConfig) {
+      console.error('agentConfig is null or undefined')
       return NextResponse.json(
         { error: 'Failed to generate agent configuration. Please try again.' },
         { status: 500 }
       )
     }
 
-    if (!agentConfig.systemPrompt || typeof agentConfig.systemPrompt !== 'string') {
-      console.error('Invalid agentConfig:', agentConfig)
-      return NextResponse.json(
-        { error: 'Invalid agent configuration generated. Please try again.' },
-        { status: 500 }
-      )
-    }
+    console.log('agentConfig received:', {
+      hasSystemPrompt: !!agentConfig.systemPrompt,
+      systemPromptType: typeof agentConfig.systemPrompt,
+      systemPromptValue: agentConfig.systemPrompt ? String(agentConfig.systemPrompt).substring(0, 100) : 'null/undefined',
+    })
 
     // Step 2: Create assistant in Vapi
     const { createAssistant } = await import('@/lib/vapi/client')
@@ -106,20 +105,44 @@ export async function POST(request: NextRequest) {
 
     // Generate a safe name from systemPrompt or use provided name
     // Ensure systemPrompt is a valid string before calling substring
-    const systemPromptStr: string = (agentConfig.systemPrompt && typeof agentConfig.systemPrompt === 'string' && agentConfig.systemPrompt.trim())
-      ? agentConfig.systemPrompt.trim()
-      : (description && typeof description === 'string' && description.trim())
-      ? description.trim()
-      : 'Untitled Agent'
+    let systemPromptStr: string = 'Untitled Agent'
     
-    // Safely create agent name with substring
-    const agentName: string = name && name.trim()
-      ? name.trim()
-      : systemPromptStr.length > 50
-      ? systemPromptStr.substring(0, 50).trim()
-      : systemPromptStr
+    try {
+      if (agentConfig?.systemPrompt && typeof agentConfig.systemPrompt === 'string') {
+        const trimmed = agentConfig.systemPrompt.trim()
+        if (trimmed.length > 0) {
+          systemPromptStr = trimmed
+        }
+      }
+      
+      // Fallback to description if systemPrompt is not valid
+      if (systemPromptStr === 'Untitled Agent' && description && typeof description === 'string') {
+        const trimmedDesc = description.trim()
+        if (trimmedDesc.length > 0) {
+          systemPromptStr = trimmedDesc
+        }
+      }
+    } catch (error) {
+      console.error('Error processing systemPrompt:', error)
+      systemPromptStr = description || 'Untitled Agent'
+    }
     
-    const firstMessage: string = systemPromptStr
+    // Safely create agent name with substring - ensure systemPromptStr is always a string
+    let agentName: string = 'Untitled Agent'
+    try {
+      if (name && typeof name === 'string' && name.trim().length > 0) {
+        agentName = name.trim()
+      } else if (systemPromptStr && typeof systemPromptStr === 'string' && systemPromptStr.length > 0) {
+        agentName = systemPromptStr.length > 50
+          ? systemPromptStr.substring(0, 50).trim()
+          : systemPromptStr.trim()
+      }
+    } catch (error) {
+      console.error('Error creating agent name:', error)
+      agentName = name || description || 'Untitled Agent'
+    }
+    
+    const firstMessage: string = systemPromptStr || description || 'Hello, how can I help you?'
 
     let vapiAssistant
     try {
