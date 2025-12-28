@@ -105,8 +105,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate a safe name from systemPrompt or use provided name
-    const agentName = name || agentConfig.systemPrompt.substring(0, 50) || 'Untitled Agent'
-    const firstMessage = agentConfig.systemPrompt || description
+    // Ensure systemPrompt is a valid string before calling substring
+    const systemPromptStr = agentConfig.systemPrompt && typeof agentConfig.systemPrompt === 'string' 
+      ? agentConfig.systemPrompt 
+      : description || 'Untitled Agent'
+    const agentName = name || (systemPromptStr.length > 50 ? systemPromptStr.substring(0, 50) : systemPromptStr) || 'Untitled Agent'
+    const firstMessage = systemPromptStr
 
     let vapiAssistant
     try {
