@@ -32,6 +32,8 @@ export function AgentSetupModal({
   const [currentStep, setCurrentStep] = useState(1)
   const [provisioningPhone, setProvisioningPhone] = useState(false)
   const [blueprintDownloaded, setBlueprintDownloaded] = useState(false)
+  const [useOwnNumber, setUseOwnNumber] = useState(false)
+  const [ownPhoneNumber, setOwnPhoneNumber] = useState('')
 
   const steps = [
     {
@@ -169,20 +171,77 @@ export function AgentSetupModal({
                           <p className="text-xs text-muted-foreground mt-2">
                             Customers can call this number to reach your agent
                           </p>
+                          {useOwnNumber && ownPhoneNumber && (
+                            <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-md">
+                              <p className="text-xs font-medium text-blue-600 dark:text-blue-400 mb-1">
+                                Using Your Number: {ownPhoneNumber}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Forward calls from {ownPhoneNumber} to {phoneNumber}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       ) : (
-                        <div className="space-y-3">
-                          <p className="text-sm text-muted-foreground">
-                            Click the button below to automatically provision a phone number from Vapi.
-                            This number will be used for your voice AI agent.
-                          </p>
-                          <Button
-                            onClick={handleProvisionPhone}
-                            disabled={provisioningPhone}
-                            className="w-full"
-                          >
-                            {provisioningPhone ? 'Provisioning...' : 'Get Phone Number'}
-                          </Button>
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id="use-own-number"
+                              checked={useOwnNumber}
+                              onChange={(e) => setUseOwnNumber(e.target.checked)}
+                              className="h-4 w-4"
+                            />
+                            <label htmlFor="use-own-number" className="text-sm font-medium cursor-pointer">
+                              I want to use my own phone number
+                            </label>
+                          </div>
+
+                          {useOwnNumber ? (
+                            <div className="space-y-3 p-4 bg-muted rounded-md">
+                              <p className="text-sm text-muted-foreground">
+                                You can use your existing business phone number. We&apos;ll provide you with a Vapi number
+                                that you&apos;ll forward your calls to.
+                              </p>
+                              <div className="space-y-2">
+                                <label htmlFor="own-number" className="text-sm font-medium">
+                                  Your Business Phone Number
+                                </label>
+                                <input
+                                  id="own-number"
+                                  type="tel"
+                                  value={ownPhoneNumber}
+                                  onChange={(e) => setOwnPhoneNumber(e.target.value)}
+                                  placeholder="+1 (555) 123-4567"
+                                  className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+                                />
+                              </div>
+                              <Button
+                                onClick={handleProvisionPhone}
+                                disabled={provisioningPhone || !ownPhoneNumber}
+                                className="w-full"
+                              >
+                                {provisioningPhone ? 'Provisioning...' : 'Get Vapi Number for Forwarding'}
+                              </Button>
+                              <p className="text-xs text-muted-foreground">
+                                After provisioning, you&apos;ll set up call forwarding from your number to the Vapi number.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              <p className="text-sm text-muted-foreground">
+                                Click the button below to automatically provision a phone number from Vapi.
+                                This number will be used for your voice AI agent.
+                              </p>
+                              <Button
+                                onClick={handleProvisionPhone}
+                                disabled={provisioningPhone}
+                                className="w-full"
+                              >
+                                {provisioningPhone ? 'Provisioning...' : 'Get Phone Number'}
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -249,12 +308,39 @@ export function AgentSetupModal({
                       {phoneNumber ? (
                         <>
                           <p className="text-sm text-muted-foreground">
-                            Your agent is ready! Call the number below to test it.
+                            Your agent is ready! {useOwnNumber && ownPhoneNumber ? 'Set up call forwarding, then' : ''} Call the number below to test it.
                           </p>
-                          <div className="p-4 bg-primary/10 border border-primary/20 rounded-md text-center">
-                            <p className="text-sm text-muted-foreground mb-1">Call this number:</p>
-                            <p className="text-2xl font-bold">{phoneNumber}</p>
-                          </div>
+                          {useOwnNumber && ownPhoneNumber ? (
+                            <div className="space-y-3">
+                              <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-md">
+                                <p className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-2">
+                                  Set Up Call Forwarding
+                                </p>
+                                <p className="text-sm text-muted-foreground mb-3">
+                                  Forward calls from your number <strong>{ownPhoneNumber}</strong> to:
+                                </p>
+                                <p className="text-xl font-bold mb-3">{phoneNumber}</p>
+                                <div className="text-xs text-muted-foreground space-y-1">
+                                  <p><strong>How to forward calls:</strong></p>
+                                  <ul className="list-disc list-inside ml-2 space-y-1">
+                                    <li>Contact your phone service provider</li>
+                                    <li>Request call forwarding to: <code className="bg-muted px-1 py-0.5 rounded">{phoneNumber}</code></li>
+                                    <li>Or use your phone&apos;s call forwarding feature</li>
+                                  </ul>
+                                </div>
+                              </div>
+                              <div className="p-4 bg-primary/10 border border-primary/20 rounded-md text-center">
+                                <p className="text-sm text-muted-foreground mb-1">Test by calling:</p>
+                                <p className="text-2xl font-bold">{phoneNumber}</p>
+                                <p className="text-xs text-muted-foreground mt-1">(Vapi number for testing)</p>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="p-4 bg-primary/10 border border-primary/20 rounded-md text-center">
+                              <p className="text-sm text-muted-foreground mb-1">Call this number:</p>
+                              <p className="text-2xl font-bold">{phoneNumber}</p>
+                            </div>
+                          )}
                           <div className="p-4 bg-muted rounded-md">
                             <p className="text-sm font-medium mb-2">What happens next:</p>
                             <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
