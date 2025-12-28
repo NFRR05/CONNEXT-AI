@@ -65,3 +65,20 @@ export async function createPhoneNumber(apiKey: string): Promise<{ id: string; n
   return response.json()
 }
 
+export async function getPhoneNumber(apiKey: string, phoneNumberId: string): Promise<{ id: string; number: string }> {
+  const response = await fetch(`${VAPI_API_URL}/phone-number/${phoneNumberId}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(`Vapi API error: ${error.message || response.statusText}`)
+  }
+
+  return response.json()
+}
+
