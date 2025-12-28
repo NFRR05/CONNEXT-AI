@@ -9,10 +9,10 @@ const VAPI_API_URL = 'https://api.vapi.ai'
 
 export interface CreateAssistantParams {
   name: string
-  systemPrompt: string
+  systemPrompt?: string // Optional, will be used as firstMessage if provided
   voiceId?: string
   model?: string
-  firstMessage?: string
+  firstMessage?: string // Vapi API uses firstMessage instead of systemPrompt
 }
 
 export interface Assistant {
@@ -30,12 +30,26 @@ export async function createAssistant(
     throw new Error('Vapi API key is required')
   }
 
-  const requestBody = {
+  // Vapi API expects different field structure
+  // Use firstMessage for the system prompt, and voice as an object
+  const requestBody: any = {
     name: params.name,
-    systemPrompt: params.systemPrompt,
-    voiceId: params.voiceId,
     model: params.model || 'gpt-4o',
-    firstMessage: params.firstMessage,
+  }
+
+  // Use firstMessage (preferred) or systemPrompt as fallback
+  if (params.firstMessage) {
+    requestBody.firstMessage = params.firstMessage
+  } else if (params.systemPrompt) {
+    requestBody.firstMessage = params.systemPrompt
+  }
+
+  // Add voice configuration if provided (Vapi expects voice object, not voiceId directly)
+  if (params.voiceId) {
+    requestBody.voice = {
+      provider: '11labs', // Default provider, adjust if needed
+      voiceId: params.voiceId,
+    }
   }
 
   // Log request for debugging (without sensitive data)

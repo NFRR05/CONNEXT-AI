@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
     try {
       vapiAssistant = await createAssistant(vapiApiKey, {
         name: name || agentConfig.systemPrompt.substring(0, 50),
-        systemPrompt: agentConfig.systemPrompt,
+        firstMessage: agentConfig.systemPrompt, // Vapi uses firstMessage instead of systemPrompt
         voiceId: agentConfig.voiceId,
         model: 'gpt-4o',
       })
