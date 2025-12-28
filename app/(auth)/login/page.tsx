@@ -150,7 +150,7 @@ function LoginForm() {
                 {loading ? 'Sending...' : 'Send Magic Link'}
               </Button>
               <p className="text-xs text-center text-muted-foreground">
-                We&apos;ll send you a link to sign in without a password
+                We'll send you a link to sign in without a password
               </p>
             </form>
           )}
@@ -158,7 +158,7 @@ function LoginForm() {
           <Separator />
 
           <div className="text-center text-sm">
-            Don&apos;t have an account?{' '}
+            Don't have an account?{' '}
             <Link href="/signup" className="text-primary hover:underline">
               Sign up
             </Link>
