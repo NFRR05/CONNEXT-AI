@@ -14,6 +14,9 @@ export interface N8nBlueprint {
   tags: any[]
   pinData: any
   versionId: string
+  meta?: {
+    instanceId: string
+  }
 }
 
 export interface GenerateBlueprintParams {
@@ -33,21 +36,43 @@ export function generateN8nBlueprint(
 ): N8nBlueprint {
   const { webhookUrl, agentSecret, agentName } = params
 
+  // Ensure webhookUrl has https:// protocol
+  const fullWebhookUrl = webhookUrl.startsWith('http') 
+    ? webhookUrl 
+    : `https://${webhookUrl}`
+
+  // Generate unique IDs for nodes
+  const timestamp = Date.now()
+  const webhookNodeId = `webhook-${timestamp}`
+  const httpNodeId = `http-${timestamp + 1}`
+  const respondNodeId = `respond-${timestamp + 2}`
+
   return {
     name: `CONNEXT AI - ${agentName}`,
     nodes: [
       {
-        parameters: {},
-        id: 'webhook-node',
+        parameters: {
+          httpMethod: 'POST',
+          path: 'vapi-webhook',
+          responseMode: 'responseNode',
+          options: {},
+        },
+        id: webhookNodeId,
         name: 'Vapi Webhook',
         type: 'n8n-nodes-base.webhook',
-        typeVersion: 1,
+        typeVersion: 2,
         position: [250, 300],
-        webhookId: 'vapi-call-webhook',
+        webhookId: `vapi-call-${Date.now()}`,
+        credentials: {},
+        disabled: false,
+        notes: '',
+        notesInFlow: false,
       },
       {
         parameters: {
-          url: webhookUrl,
+          method: 'POST',
+          url: fullWebhookUrl,
+          authentication: 'none',
           sendHeaders: true,
           headerParameters: {
             parameters: [
@@ -55,56 +80,70 @@ export function generateN8nBlueprint(
                 name: 'x-agent-secret',
                 value: agentSecret,
               },
+              {
+                name: 'Content-Type',
+                value: 'application/json',
+              },
             ],
           },
           sendBody: true,
-          bodyParameters: {
-            parameters: [
-              {
-                name: 'phone',
-                value: '={{ $json.from }}',
+          specifyBody: 'json',
+          jsonBody: '={{ JSON.stringify({ phone: $json.from || $json.phone || $json.customerPhone || null, summary: $json.summary || $json.callSummary || null, recording: $json.recordingUrl || $json.recording || $json.recording_url || null, transcript: $json.transcript || $json.callTranscript || $json.call_transcript || null, sentiment: $json.sentiment || null, structured_data: $json.structuredData || $json.structured_data || $json.data || {}, duration: $json.duration || $json.callDuration || null }) }}',
+          options: {
+            response: {
+              response: {
+                responseFormat: 'json',
+                response: {
+                  neverError: true,
+                },
               },
-              {
-                name: 'summary',
-                value: '={{ $json.summary }}',
-              },
-              {
-                name: 'recording',
-                value: '={{ $json.recordingUrl }}',
-              },
-              {
-                name: 'transcript',
-                value: '={{ $json.transcript }}',
-              },
-              {
-                name: 'sentiment',
-                value: '={{ $json.sentiment }}',
-              },
-              {
-                name: 'structured_data',
-                value: '={{ $json.structuredData }}',
-              },
-              {
-                name: 'duration',
-                value: '={{ $json.duration }}',
-              },
-            ],
+            },
           },
-          options: {},
         },
-        id: 'http-request-node',
+        id: httpNodeId,
         name: 'CONNEXT AI Ingest',
         type: 'n8n-nodes-base.httpRequest',
-        typeVersion: 4.1,
+        typeVersion: 4.2,
         position: [450, 300],
+        credentials: {},
+        disabled: false,
+        notes: '',
+        notesInFlow: false,
+      },
+      {
+        parameters: {
+          respondWith: 'json',
+          responseBody: '={{ { "success": true, "message": "Lead ingested successfully" } }}',
+          options: {},
+        },
+        id: respondNodeId,
+        name: 'Respond to Webhook',
+        type: 'n8n-nodes-base.respondToWebhook',
+        typeVersion: 1.1,
+        position: [650, 300],
+        credentials: {},
+        disabled: false,
+        notes: '',
+        notesInFlow: false,
       },
     ],
     connections: {
-      'Vapi Webhook': {
+      [webhookNodeId]: {
         main: [
           [
             {
-              node: 'CONNEXT AI Ingest',
+              node: httpNodeId,
+              type: 'main',
+              index: 0,
+            },
+          ],
+        ],
+      },
+      [httpNodeId]: {
+        main: [
+          [
+            {
+              node: respondNodeId,
               type: 'main',
               index: 0,
             },
@@ -114,11 +153,20 @@ export function generateN8nBlueprint(
     },
     settings: {
       executionOrder: 'v1',
+      saveDataErrorExecution: 'all',
+      saveDataSuccessExecution: 'all',
+      saveManualExecutions: true,
+      callersPolicy: 'workflowsFromSameOwner',
+      errorWorkflow: '',
+      timezone: 'America/New_York',
     },
     staticData: null,
     tags: [],
     pinData: {},
     versionId: '1',
+    meta: {
+      instanceId: '',
+    },
   }
 }
 

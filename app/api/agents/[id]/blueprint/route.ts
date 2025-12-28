@@ -38,7 +38,9 @@ export async function GET(
 
     // Generate n8n blueprint
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-    const webhookUrl = `${appUrl}/api/webhooks/ingest`
+    // Remove trailing slash and ensure proper URL format
+    const cleanUrl = appUrl.replace(/\/$/, '')
+    const webhookUrl = `${cleanUrl}/api/webhooks/ingest`
     
     const blueprint = generateN8nBlueprint({
       webhookUrl,
