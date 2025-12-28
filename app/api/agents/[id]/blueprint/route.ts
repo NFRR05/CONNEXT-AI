@@ -42,12 +42,19 @@ export async function GET(
     const cleanUrl = appUrl.replace(/\/$/, '')
     const webhookUrl = `${cleanUrl}/api/webhooks/ingest`
     
-    const blueprint = generateN8nBlueprint({
+    console.log('[Blueprint API] Generating n8n blueprint...', {
+      webhookUrl,
+      agentName: agent.name,
+      hasOpenAI: !!process.env.OPENAI_API_KEY,
+    })
+    
+    const blueprint = await generateN8nBlueprint({
       webhookUrl,
       agentSecret: agent.api_secret,
       agentName: agent.name,
     })
 
+    console.log('[Blueprint API] Blueprint generated successfully')
     const blueprintJson = blueprintToJson(blueprint)
 
     // Return as downloadable JSON
