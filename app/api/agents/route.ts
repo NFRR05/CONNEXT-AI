@@ -70,8 +70,9 @@ export async function POST(request: NextRequest) {
       agentConfig = await generateAgentConfig(description)
     } catch (error) {
       console.error('OpenAI error:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Failed to generate agent configuration. Please try again.'
       return NextResponse.json(
-        { error: 'Failed to generate agent configuration. Please try again.' },
+        { error: errorMessage },
         { status: 500 }
       )
     }
