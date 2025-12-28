@@ -20,8 +20,14 @@ export interface AgentConfig {
 export async function generateAgentConfig(
   userDescription: string
 ): Promise<AgentConfig> {
+  console.log('[OpenAI Client] Generating agent config...', {
+    descriptionLength: userDescription.length,
+    hasApiKey: !!process.env.OPENAI_API_KEY,
+  })
+  
   // Check if API key is configured
   if (!process.env.OPENAI_API_KEY) {
+    console.error('[OpenAI Client] OpenAI API key is not configured')
     throw new Error('OpenAI API key is not configured. Please set OPENAI_API_KEY in your environment variables.')
   }
 
@@ -65,24 +71,59 @@ Respond in JSON format:
 
     const content = completion.choices[0]?.message?.content
     if (!content) {
+      console.error('[OpenAI Client] No content in OpenAI response:', {
+        choicesLength: completion.choices.length,
+        firstChoice: completion.choices[0],
+      })
       throw new Error('No response from OpenAI')
     }
 
+    console.log('[OpenAI Client] OpenAI response received:', {
+      contentLength: content.length,
+      contentPreview: content.substring(0, 200),
+    })
+
     try {
       const parsed = JSON.parse(content) as AgentConfig
+      console.log('[OpenAI Client] JSON parsed successfully:', {
+        hasSystemPrompt: !!parsed.systemPrompt,
+        systemPromptLength: parsed.systemPrompt?.length || 0,
+        hasVoiceId: !!parsed.voiceId,
+        voiceId: parsed.voiceId,
+        hasTools: !!parsed.tools,
+      })
       
       // Validate required fields
       if (!parsed.systemPrompt || !parsed.voiceId) {
+        console.error('[OpenAI Client] Missing required fields in parsed config:', {
+          hasSystemPrompt: !!parsed.systemPrompt,
+          hasVoiceId: !!parsed.voiceId,
+          parsed,
+        })
         throw new Error('Invalid response from OpenAI: missing required fields')
       }
 
+      console.log('[OpenAI Client] Agent config generated successfully')
       return parsed
     } catch (parseError) {
-      console.error('JSON parse error:', parseError)
-      console.error('Content received:', content)
+      console.error('[OpenAI Client] JSON parse error:', {
+        parseError,
+        errorMessage: parseError instanceof Error ? parseError.message : String(parseError),
+        contentLength: content.length,
+        contentPreview: content.substring(0, 500),
+      })
       throw new Error('Failed to parse OpenAI response. Please try again.')
     }
   } catch (error: any) {
+    console.error('[OpenAI Client] Error generating agent config:', {
+      error,
+      errorType: error?.constructor?.name || typeof error,
+      errorStatus: error?.status,
+      errorCode: error?.code,
+      errorMessage: error?.message,
+      errorStack: error?.stack,
+    })
+    
     // Handle OpenAI API errors
     if (error?.status === 429 || error?.code === 'insufficient_quota' || error?.message?.includes('quota')) {
       throw new Error('OpenAI quota exceeded. Please check your plan and billing details at https://platform.openai.com/account/billing')

@@ -53,11 +53,14 @@ export async function createAssistant(
   }
 
   // Log request for debugging (without sensitive data)
-  console.log('Creating Vapi assistant:', {
+  console.log('[VAPI Client] Creating Vapi assistant:', {
     url: `${VAPI_API_URL}/assistant`,
     hasApiKey: !!apiKey,
     apiKeyLength: apiKey.length,
-    requestBody: { ...requestBody, systemPrompt: requestBody.systemPrompt.substring(0, 50) + '...' },
+    requestBody: {
+      ...requestBody,
+      firstMessage: requestBody.firstMessage ? requestBody.firstMessage.substring(0, 100) + '...' : undefined,
+    },
   })
 
   const response = await fetch(`${VAPI_API_URL}/assistant`, {
@@ -71,27 +74,45 @@ export async function createAssistant(
 
   if (!response.ok) {
     let errorMessage = `Vapi API error: ${response.status} ${response.statusText}`
+    let errorDetails: any = null
     try {
       const error = await response.json()
+      errorDetails = error
       errorMessage = `Vapi API error: ${error.message || error.error || response.statusText} (Status: ${response.status})`
       // Log full error for debugging
-      console.error('Vapi API error details:', {
+      console.error('[VAPI Client] Vapi API error details:', {
         status: response.status,
         statusText: response.statusText,
         error: error,
+        requestBody: {
+          ...requestBody,
+          firstMessage: requestBody.firstMessage ? requestBody.firstMessage.substring(0, 100) + '...' : undefined,
+        },
       })
     } catch (e) {
       // If response is not JSON, try to get text
       try {
         const text = await response.text()
         errorMessage = `Vapi API error: ${text || response.statusText} (Status: ${response.status})`
+        console.error('[VAPI Client] Vapi API error (non-JSON response):', {
+          status: response.status,
+          statusText: response.statusText,
+          responseText: text,
+        })
       } catch (e2) {
         // Fallback to status text
         errorMessage = `Vapi API error: ${response.status} ${response.statusText}`
+        console.error('[VAPI Client] Vapi API error (failed to read response):', {
+          status: response.status,
+          statusText: response.statusText,
+          parseError: e2,
+        })
       }
     }
     throw new Error(errorMessage)
   }
+  
+  console.log('[VAPI Client] Vapi assistant created successfully')
 
   return response.json()
 }
