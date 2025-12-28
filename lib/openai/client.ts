@@ -84,16 +84,16 @@ Respond in JSON format:
     }
   } catch (error: any) {
     // Handle OpenAI API errors
+    if (error?.status === 429 || error?.code === 'insufficient_quota' || error?.message?.includes('quota')) {
+      throw new Error('OpenAI quota exceeded. Please check your plan and billing details at https://platform.openai.com/account/billing')
+    }
+    if (error?.status === 401 || error?.message?.includes('API key') || error?.message?.includes('Invalid')) {
+      throw new Error('Invalid OpenAI API key. Please check your configuration.')
+    }
+    if (error?.status === 429 || error?.message?.includes('rate limit')) {
+      throw new Error('OpenAI rate limit exceeded. Please try again in a moment.')
+    }
     if (error instanceof Error) {
-      if (error.message.includes('API key')) {
-        throw new Error('Invalid OpenAI API key. Please check your configuration.')
-      }
-      if (error.message.includes('rate limit')) {
-        throw new Error('OpenAI rate limit exceeded. Please try again in a moment.')
-      }
-      if (error.message.includes('insufficient_quota')) {
-        throw new Error('OpenAI quota exceeded. Please check your account billing.')
-      }
       throw error
     }
     throw new Error('Failed to generate agent configuration. Please try again.')
