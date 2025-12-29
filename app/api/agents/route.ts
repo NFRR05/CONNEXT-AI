@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    const { description, name } = body
+    const { description, name, formData, workflowConfig } = body
 
     if (!description) {
       console.error('[Agent Creation] Missing description in request body')
@@ -305,6 +305,8 @@ export async function POST(request: NextRequest) {
       api_secret: apiSecret,
       system_prompt: agentConfig.systemPrompt,
       voice_id: agentConfig.voiceId || null,
+      form_data: formData || {},
+      workflow_config: workflowConfig || {},
     }
     
     console.log('[Agent Creation] Insert data prepared:', {

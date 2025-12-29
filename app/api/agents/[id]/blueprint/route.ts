@@ -52,6 +52,8 @@ export async function GET(
       webhookUrl,
       agentSecret: agent.api_secret,
       agentName: agent.name,
+      formData: agent.form_data || undefined,
+      workflowConfig: agent.workflow_config || undefined,
     })
 
     console.log('[Blueprint API] Blueprint generated successfully')

@@ -23,6 +23,41 @@ interface Agent {
   updated_at: string
 }
 
+interface WorkflowConfig {
+  // Data validation
+  validatePhone: boolean
+  validateEmail: boolean
+  minCallDuration: number | null
+  filterTestCalls: boolean
+  
+  // Error handling
+  retryOnFailure: boolean
+  maxRetries: number
+  errorNotifications: {
+    enabled: boolean
+    email: string | null
+  }
+  
+  // Data transformation
+  formatPhoneNumbers: boolean
+  extractStructuredData: boolean
+  
+  // Conditional routing
+  routeBySentiment: boolean
+  sentimentThreshold: 'positive' | 'negative' | 'all'
+  routeByDuration: boolean
+  durationThreshold: number | null
+  
+  // Business hours
+  routeByBusinessHours: boolean
+  timezone: string | null
+  businessHours: {
+    start: string
+    end: string
+    days: number[]
+  } | null
+}
+
 interface FormData {
   businessType: string[]
   agentPurpose: string[]
@@ -31,6 +66,7 @@ interface FormData {
   additionalInfo: string
   businessName: string
   agentName: string
+  workflowConfig: WorkflowConfig
 }
 
 const BUSINESS_TYPES = [
@@ -97,10 +133,31 @@ export default function CreateAgentPage() {
     tone: [],
     additionalInfo: '',
     businessName: '',
-    agentName: ''
+    agentName: '',
+    workflowConfig: {
+      validatePhone: true,
+      validateEmail: false,
+      minCallDuration: null,
+      filterTestCalls: true,
+      retryOnFailure: true,
+      maxRetries: 3,
+      errorNotifications: {
+        enabled: false,
+        email: null
+      },
+      formatPhoneNumbers: true,
+      extractStructuredData: true,
+      routeBySentiment: false,
+      sentimentThreshold: 'all',
+      routeByDuration: false,
+      durationThreshold: null,
+      routeByBusinessHours: false,
+      timezone: null,
+      businessHours: null
+    }
   })
 
-  const totalSteps = 5
+  const totalSteps = 6
 
   function updateFormData(field: keyof FormData, value: any) {
     setFormData(prev => ({ ...prev, [field]: value }))
@@ -128,9 +185,34 @@ export default function CreateAgentPage() {
         return formData.tone.length > 0
       case 5:
         return true // Additional info is optional
+      case 6:
+        return true // Workflow config is optional (has defaults)
       default:
         return false
     }
+  }
+
+  function updateWorkflowConfig(field: keyof WorkflowConfig, value: any) {
+    setFormData(prev => ({
+      ...prev,
+      workflowConfig: {
+        ...prev.workflowConfig,
+        [field]: value
+      }
+    }))
+  }
+
+  function updateErrorNotifications(field: keyof WorkflowConfig['errorNotifications'], value: any) {
+    setFormData(prev => ({
+      ...prev,
+      workflowConfig: {
+        ...prev.workflowConfig,
+        errorNotifications: {
+          ...prev.workflowConfig.errorNotifications,
+          [field]: value
+        }
+      }
+    }))
   }
 
   function generateDescription(): string {
@@ -183,6 +265,15 @@ export default function CreateAgentPage() {
         body: JSON.stringify({
           description,
           name: formData.agentName || undefined,
+          formData: {
+            businessType: formData.businessType,
+            agentPurpose: formData.agentPurpose,
+            informationToCollect: formData.informationToCollect,
+            tone: formData.tone,
+            additionalInfo: formData.additionalInfo,
+            businessName: formData.businessName,
+          },
+          workflowConfig: formData.workflowConfig,
         }),
       })
 
@@ -409,6 +500,196 @@ export default function CreateAgentPage() {
           </div>
         )
 
+      case 6:
+        return (
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-semibold mb-2">Workflow Configuration</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Customize how your workflow processes and routes leads (optional - defaults are recommended)
+              </p>
+            </div>
+
+            {/* Data Validation */}
+            <div className="space-y-3 border-b pb-4">
+              <h4 className="font-medium text-sm">Data Validation</h4>
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.workflowConfig.validatePhone}
+                  onChange={(e) => updateWorkflowConfig('validatePhone', e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                <span className="text-sm">Validate phone numbers before processing</span>
+              </label>
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.workflowConfig.validateEmail}
+                  onChange={(e) => updateWorkflowConfig('validateEmail', e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                <span className="text-sm">Validate email addresses (if collected)</span>
+              </label>
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.workflowConfig.filterTestCalls}
+                  onChange={(e) => updateWorkflowConfig('filterTestCalls', e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                <span className="text-sm">Filter out test calls (very short duration)</span>
+              </label>
+              <div className="flex items-center space-x-2">
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.workflowConfig.minCallDuration !== null}
+                    onChange={(e) => updateWorkflowConfig('minCallDuration', e.target.checked ? 30 : null)}
+                    className="rounded border-gray-300"
+                  />
+                  <span className="text-sm">Minimum call duration (seconds):</span>
+                </label>
+                {formData.workflowConfig.minCallDuration !== null && (
+                  <Input
+                    type="number"
+                    value={formData.workflowConfig.minCallDuration || 30}
+                    onChange={(e) => updateWorkflowConfig('minCallDuration', parseInt(e.target.value) || 30)}
+                    min={1}
+                    className="w-20"
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* Error Handling */}
+            <div className="space-y-3 border-b pb-4">
+              <h4 className="font-medium text-sm">Error Handling</h4>
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.workflowConfig.retryOnFailure}
+                  onChange={(e) => updateWorkflowConfig('retryOnFailure', e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                <span className="text-sm">Retry failed requests automatically</span>
+              </label>
+              {formData.workflowConfig.retryOnFailure && (
+                <div className="ml-6 flex items-center space-x-2">
+                  <Label htmlFor="maxRetries" className="text-sm">Max retries:</Label>
+                  <Input
+                    id="maxRetries"
+                    type="number"
+                    value={formData.workflowConfig.maxRetries}
+                    onChange={(e) => updateWorkflowConfig('maxRetries', parseInt(e.target.value) || 3)}
+                    min={1}
+                    max={10}
+                    className="w-20"
+                  />
+                </div>
+              )}
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.workflowConfig.errorNotifications.enabled}
+                  onChange={(e) => updateErrorNotifications('enabled', e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                <span className="text-sm">Send error notifications via email</span>
+              </label>
+              {formData.workflowConfig.errorNotifications.enabled && (
+                <div className="ml-6">
+                  <Input
+                    type="email"
+                    placeholder="your-email@example.com"
+                    value={formData.workflowConfig.errorNotifications.email || ''}
+                    onChange={(e) => updateErrorNotifications('email', e.target.value)}
+                    className="mt-2"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Data Transformation */}
+            <div className="space-y-3 border-b pb-4">
+              <h4 className="font-medium text-sm">Data Transformation</h4>
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.workflowConfig.formatPhoneNumbers}
+                  onChange={(e) => updateWorkflowConfig('formatPhoneNumbers', e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                <span className="text-sm">Format phone numbers to international format</span>
+              </label>
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.workflowConfig.extractStructuredData}
+                  onChange={(e) => updateWorkflowConfig('extractStructuredData', e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                <span className="text-sm">Extract structured data from transcripts (names, dates, etc.)</span>
+              </label>
+            </div>
+
+            {/* Conditional Routing */}
+            <div className="space-y-3 border-b pb-4">
+              <h4 className="font-medium text-sm">Smart Routing</h4>
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.workflowConfig.routeBySentiment}
+                  onChange={(e) => updateWorkflowConfig('routeBySentiment', e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                <span className="text-sm">Route leads by sentiment (positive/negative)</span>
+              </label>
+              {formData.workflowConfig.routeBySentiment && (
+                <div className="ml-6">
+                  <select
+                    value={formData.workflowConfig.sentimentThreshold}
+                    onChange={(e) => updateWorkflowConfig('sentimentThreshold', e.target.value as any)}
+                    className="mt-2 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="all">All sentiments</option>
+                    <option value="positive">Only positive</option>
+                    <option value="negative">Only negative (for priority handling)</option>
+                  </select>
+                </div>
+              )}
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.workflowConfig.routeByDuration}
+                  onChange={(e) => updateWorkflowConfig('routeByDuration', e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                <span className="text-sm">Route by call duration (longer calls = higher priority)</span>
+              </label>
+              {formData.workflowConfig.routeByDuration && (
+                <div className="ml-6 flex items-center space-x-2">
+                  <Label htmlFor="durationThreshold" className="text-sm">Duration threshold (seconds):</Label>
+                  <Input
+                    id="durationThreshold"
+                    type="number"
+                    value={formData.workflowConfig.durationThreshold || 120}
+                    onChange={(e) => updateWorkflowConfig('durationThreshold', parseInt(e.target.value) || 120)}
+                    min={1}
+                    className="w-24"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="bg-blue-50 dark:bg-blue-950/20 p-3 rounded-md">
+              <p className="text-xs text-blue-900 dark:text-blue-200">
+                💡 <strong>Tip:</strong> These settings will create a sophisticated n8n workflow with validation, error handling, and smart routing. You can always modify the workflow later in n8n.
+              </p>
+            </div>
+          </div>
+        )
+
       default:
         return null
     }
@@ -458,6 +739,7 @@ export default function CreateAgentPage() {
             {step === 3 && 'Information Collection'}
             {step === 4 && 'Tone & Personality'}
             {step === 5 && 'Final Details'}
+            {step === 6 && 'Workflow Configuration'}
           </CardTitle>
         </CardHeader>
         <CardContent className="px-4 sm:px-6">
