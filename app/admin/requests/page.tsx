@@ -40,10 +40,6 @@ export default function AdminRequestsPage() {
   const [loadingPreview, setLoadingPreview] = useState(false)
   const { toast } = useToast()
 
-  useEffect(() => {
-    fetchRequests()
-  }, [])
-
   const fetchRequests = async () => {
     try {
       const supabase = createClient()
@@ -70,6 +66,11 @@ export default function AdminRequestsPage() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    fetchRequests()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleApprove = async (requestId: string) => {
     setActionLoading(requestId)

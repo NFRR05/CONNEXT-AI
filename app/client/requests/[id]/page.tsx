@@ -33,13 +33,7 @@ export default function RequestDetailPage() {
   const [loading, setLoading] = useState(true)
   const [cancelling, setCancelling] = useState(false)
 
-  useEffect(() => {
-    if (params.id) {
-      fetchRequest(params.id as string)
-    }
-  }, [params.id])
-
-  const fetchRequest = async (requestId: string) => {
+  const fetchRequest = useCallback(async (requestId: string) => {
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
@@ -66,7 +60,13 @@ export default function RequestDetailPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [router, toast])
+
+  useEffect(() => {
+    if (params.id) {
+      fetchRequest(params.id as string)
+    }
+  }, [params.id, fetchRequest])
 
   const handleCancel = async () => {
     if (!request) return
@@ -157,7 +157,7 @@ export default function RequestDetailPage() {
             <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">Request not found</h3>
             <p className="text-muted-foreground mb-4 text-center">
-              The request you're looking for doesn't exist or you don't have access to it.
+              The request you&apos;re looking for doesn&apos;t exist or you don&apos;t have access to it.
             </p>
             <Link href="/client/requests">
               <Button>Back to Requests</Button>

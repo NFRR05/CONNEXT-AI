@@ -28,10 +28,6 @@ export default function AdminWorkflowsPage() {
   const [downloading, setDownloading] = useState<string | null>(null)
   const { toast } = useToast()
 
-  useEffect(() => {
-    fetchAgents()
-  }, [])
-
   const fetchAgents = async () => {
     try {
       const supabase = createClient()
@@ -64,6 +60,11 @@ export default function AdminWorkflowsPage() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    fetchAgents()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const syncWorkflow = async (agentId: string, workflowId: string) => {
     setSyncing(agentId)
@@ -238,7 +239,7 @@ export default function AdminWorkflowsPage() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <p className="text-sm text-muted-foreground break-words">
-                    This agent doesn't have an n8n workflow. Workflows are automatically created when you approve agent creation requests.
+                    This agent doesn&apos;t have an n8n workflow. Workflows are automatically created when you approve agent creation requests.
                   </p>
                   <Button
                     variant="outline"

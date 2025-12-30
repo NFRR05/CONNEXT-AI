@@ -1,17 +1,13 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 export default function LeadsPage() {
   const router = useRouter()
 
-  useEffect(() => {
-    redirectToPortal()
-  }, [])
-
-  const redirectToPortal = async () => {
+  const redirectToPortal = useCallback(async () => {
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
@@ -38,7 +34,11 @@ export default function LeadsPage() {
       console.error('Error redirecting:', error)
       router.push('/client/leads')
     }
-  }
+  }, [router])
+
+  useEffect(() => {
+    redirectToPortal()
+  }, [redirectToPortal])
 
   return (
     <div className="flex items-center justify-center min-h-screen">
