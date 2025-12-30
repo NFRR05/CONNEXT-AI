@@ -34,7 +34,7 @@ export async function createAssistant(
   // Use firstMessage for the system prompt, and voice as an object
   const requestBody: any = {
     name: params.name,
-    model: params.model || 'gpt-4o',
+    model: params.model || 'gpt-3.5-turbo',
   }
 
   // Use firstMessage (preferred) or systemPrompt as fallback

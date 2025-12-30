@@ -73,6 +73,73 @@ export const leadUpdateSchema = z.object({
   }),
 })
 
+// Agent request validation
+export const agentRequestSchema = z.object({
+  request_type: z.enum(['create', 'update', 'delete'], {
+    errorMap: () => ({ message: 'Request type must be create, update, or delete' })
+  }),
+  
+  agent_id: z.string()
+    .uuid('Agent ID must be a valid UUID')
+    .optional()
+    .nullable(),
+  
+  name: z.string()
+    .min(1, 'Name cannot be empty')
+    .max(100, 'Name must be less than 100 characters')
+    .trim()
+    .optional(),
+  
+  description: z.string()
+    .min(10, 'Description must be at least 10 characters')
+    .max(5000, 'Description must be less than 5,000 characters')
+    .trim()
+    .optional(),
+  
+  system_prompt: z.string()
+    .max(10000, 'System prompt must be less than 10,000 characters')
+    .optional()
+    .nullable(),
+  
+  voice_id: z.string()
+    .max(100)
+    .optional()
+    .nullable(),
+  
+  form_data: z.record(z.any())
+    .optional(),
+  
+  workflow_config: z.record(z.any())
+    .optional(),
+}).refine(
+  (data) => {
+    // For create requests, description is required
+    if (data.request_type === 'create' && !data.description) {
+      return false
+    }
+    // For update/delete requests, agent_id is required
+    if ((data.request_type === 'update' || data.request_type === 'delete') && !data.agent_id) {
+      return false
+    }
+    return true
+  },
+  {
+    message: 'Description required for create requests, agent_id required for update/delete requests'
+  }
+)
+
+// Admin request update validation
+export const adminRequestUpdateSchema = z.object({
+  status: z.enum(['approved', 'rejected'], {
+    errorMap: () => ({ message: 'Status must be approved or rejected' })
+  }),
+  
+  admin_notes: z.string()
+    .max(1000, 'Admin notes must be less than 1,000 characters')
+    .optional()
+    .nullable(),
+})
+
 // Helper function to validate and return errors
 export function validateInput<T>(
   schema: z.ZodSchema<T>,

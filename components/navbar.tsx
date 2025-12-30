@@ -2,22 +2,59 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { signOut } from '@/app/actions/auth'
 import { cn } from '@/lib/utils'
 import { Menu, X, LogOut } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 export function Navbar() {
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [userRole, setUserRole] = useState<'client' | 'admin' | 'support' | null>(null)
 
-  const isActive = (path: string) => pathname === path
+  useEffect(() => {
+    fetchUserRole()
+  }, [])
 
-  const navLinks = [
-    { href: '/agents', label: 'Agents' },
-    { href: '/leads', label: 'Leads' },
+  const fetchUserRole = async () => {
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single()
+        setUserRole(profile?.role || 'client')
+      }
+    } catch (error) {
+      console.error('Error fetching user role:', error)
+    }
+  }
+
+  const isActive = (path: string) => pathname?.startsWith(path)
+
+  // Client portal links
+  const clientLinks = [
+    { href: '/client/dashboard', label: 'Dashboard' },
+    { href: '/client/requests', label: 'Requests' },
+    { href: '/client/agents', label: 'Agents' },
+    { href: '/client/leads', label: 'Leads' },
   ]
+
+  // Admin portal links
+  const adminLinks = [
+    { href: '/admin/dashboard', label: 'Dashboard' },
+    { href: '/admin/requests', label: 'Requests' },
+    { href: '/admin/agents', label: 'Agents' },
+    { href: '/admin/workflows', label: 'Workflows' },
+  ]
+
+  const navLinks = userRole === 'admin' || userRole === 'support' ? adminLinks : clientLinks
+  const dashboardPath = userRole === 'admin' || userRole === 'support' ? '/admin/dashboard' : '/client/dashboard'
 
   return (
     <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
@@ -26,7 +63,7 @@ export function Navbar() {
           {/* Logo */}
           <div className="flex items-center">
             <Link 
-              href="/agents" 
+              href={dashboardPath}
               className="flex items-center space-x-2 transition-opacity hover:opacity-80"
               onClick={() => setMobileMenuOpen(false)}
             >

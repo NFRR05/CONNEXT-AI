@@ -58,9 +58,55 @@ export async function updateSession(request: NextRequest) {
 
   // Redirect authenticated users away from login/signup
   if (user && (request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/signup'))) {
+    // Get user role to redirect to appropriate portal
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+    
+    const userRole = profile?.role || 'client'
     const url = request.nextUrl.clone()
-    url.pathname = '/agents'
+    url.pathname = userRole === 'admin' || userRole === 'support' ? '/admin/dashboard' : '/client/dashboard'
     return NextResponse.redirect(url)
+  }
+
+  // Role-based route protection
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+    
+    const userRole = profile?.role || 'client'
+    const pathname = request.nextUrl.pathname
+
+    // Admin routes - only admins/support can access
+    if (pathname.startsWith('/admin')) {
+      if (userRole !== 'admin' && userRole !== 'support') {
+        const url = request.nextUrl.clone()
+        url.pathname = '/client/dashboard'
+        return NextResponse.redirect(url)
+      }
+    }
+
+    // Client routes - only clients can access (admins can view but should use admin portal)
+    if (pathname.startsWith('/client')) {
+      // Allow access for all authenticated users
+      // Admins can view client portal if needed
+    }
+
+    // Legacy dashboard routes - redirect based on role
+    if (pathname.startsWith('/agents') || pathname.startsWith('/leads') || pathname === '/dashboard') {
+      const url = request.nextUrl.clone()
+      if (userRole === 'admin' || userRole === 'support') {
+        url.pathname = pathname.replace(/^\/(agents|leads|dashboard)/, '/admin$&')
+      } else {
+        url.pathname = pathname.replace(/^\/(agents|leads|dashboard)/, '/client$&')
+      }
+      return NextResponse.redirect(url)
+    }
   }
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is. If you're

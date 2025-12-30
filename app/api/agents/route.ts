@@ -249,7 +249,7 @@ export async function POST(request: NextRequest) {
       const vapiParams: any = {
         name: agentName,
         firstMessage: firstMessage, // Vapi uses firstMessage instead of systemPrompt
-        model: 'gpt-4o',
+        model: 'gpt-3.5-turbo',
       }
       
       // Only add voiceId if it's provided and not null

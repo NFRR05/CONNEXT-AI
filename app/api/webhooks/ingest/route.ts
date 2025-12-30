@@ -102,6 +102,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // 7. Update webhook activity tracking
+    try {
+      await supabase.rpc('update_webhook_activity', {
+        p_agent_id: agent.id,
+      })
+    } catch (activityError) {
+      // Log but don't fail the request
+      console.error('Error updating webhook activity:', activityError)
+    }
+
     return NextResponse.json(
       { success: true, lead_id: lead.id },
       { 
