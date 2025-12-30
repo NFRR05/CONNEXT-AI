@@ -113,15 +113,56 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    const body = await request.json()
-    const { leadId, status } = body
-
-    if (!leadId || !status) {
+    // Rate limiting
+    const { rateLimiters } = await import('@/lib/rate-limit-supabase')
+    const rateLimit = await rateLimiters.apiGeneral(user.id)
+    
+    if (!rateLimit.allowed) {
       return NextResponse.json(
-        { error: 'leadId and status are required' },
+        { 
+          error: 'Rate limit exceeded',
+          retryAfter: Math.ceil((rateLimit.resetAt.getTime() - Date.now()) / 1000)
+        },
+        { 
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': rateLimit.limit.toString(),
+            'X-RateLimit-Remaining': rateLimit.remaining.toString(),
+            'X-RateLimit-Reset': rateLimit.resetAt.toISOString(),
+          }
+        }
+      )
+    }
+
+    // Parse and validate request body
+    let body
+    try {
+      body = await request.json()
+    } catch (error) {
+      return NextResponse.json(
+        { error: 'Invalid JSON body' },
         { status: 400 }
       )
     }
+
+    // Validate input
+    const { leadUpdateSchema, validateInput } = await import('@/lib/validation')
+    const validation = validateInput(leadUpdateSchema, body)
+    
+    if (!validation.success) {
+      return NextResponse.json(
+        { 
+          error: 'Invalid input data',
+          details: validation.errors.errors.map(e => ({
+            path: e.path.join('.'),
+            message: e.message
+          }))
+        },
+        { status: 400 }
+      )
+    }
+
+    const { leadId, status } = validation.data
 
     // Verify user owns the lead
     const { data: lead, error: leadError } = await supabase

@@ -75,6 +75,27 @@ export async function POST(request: NextRequest) {
       email: user.email,
     })
 
+    // Rate limiting (per user)
+    const { rateLimiters } = await import('@/lib/rate-limit-supabase')
+    const rateLimit = await rateLimiters.agentCreation(user.id)
+    
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { 
+          error: 'Rate limit exceeded. You can create up to 3 agents per hour.',
+          retryAfter: Math.ceil((rateLimit.resetAt.getTime() - Date.now()) / 1000)
+        },
+        { 
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': rateLimit.limit.toString(),
+            'X-RateLimit-Remaining': rateLimit.remaining.toString(),
+            'X-RateLimit-Reset': rateLimit.resetAt.toISOString(),
+          }
+        }
+      )
+    }
+
     console.log('[Agent Creation] Step 3: Parsing request body...')
     let body
     try {
@@ -92,16 +113,25 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-    
-    const { description, name, formData, workflowConfig } = body
 
-    if (!description) {
-      console.error('[Agent Creation] Missing description in request body')
+    // Validate input
+    const { agentCreationSchema, validateInput } = await import('@/lib/validation')
+    const validation = validateInput(agentCreationSchema, body)
+    
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'Description is required' },
+        { 
+          error: 'Invalid input data',
+          details: validation.errors.errors.map(e => ({
+            path: e.path.join('.'),
+            message: e.message
+          }))
+        },
         { status: 400 }
       )
     }
+
+    const { description, name, formData, workflowConfig } = validation.data
 
     // Step 1: Generate agent config using OpenAI
     console.log('[Agent Creation] Step 4: Generating agent config with OpenAI...')
