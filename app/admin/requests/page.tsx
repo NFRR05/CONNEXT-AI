@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { createClient } from '@/lib/supabase/client'
-import { Clock, CheckCircle, XCircle, Eye, MessageSquare } from 'lucide-react'
+import { Clock, CheckCircle, XCircle, Eye, MessageSquare, FileJson, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
 interface AgentRequest {
@@ -22,6 +22,8 @@ interface AgentRequest {
   created_at: string
   admin_notes: string | null
   agent_id: string | null
+  form_data: any
+  workflow_config: any
   profiles: {
     email: string | null
   } | null
@@ -33,6 +35,9 @@ export default function AdminRequestsPage() {
   const [selectedRequest, setSelectedRequest] = useState<AgentRequest | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [adminNotes, setAdminNotes] = useState('')
+  const [showWorkflowPreview, setShowWorkflowPreview] = useState(false)
+  const [workflowPreview, setWorkflowPreview] = useState<any>(null)
+  const [loadingPreview, setLoadingPreview] = useState(false)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -92,6 +97,8 @@ export default function AdminRequestsPage() {
 
       setSelectedRequest(null)
       setAdminNotes('')
+      setShowWorkflowPreview(false)
+      setWorkflowPreview(null)
       fetchRequests()
     } catch (error: any) {
       toast({
@@ -130,6 +137,8 @@ export default function AdminRequestsPage() {
 
       setSelectedRequest(null)
       setAdminNotes('')
+      setShowWorkflowPreview(false)
+      setWorkflowPreview(null)
       fetchRequests()
     } catch (error: any) {
       toast({
@@ -178,6 +187,35 @@ export default function AdminRequestsPage() {
     return labels[type] || type
   }
 
+  const loadWorkflowPreview = async (requestId: string) => {
+    if (workflowPreview) {
+      setShowWorkflowPreview(!showWorkflowPreview)
+      return
+    }
+
+    setLoadingPreview(true)
+    try {
+      const response = await fetch(`/api/admin/agent-requests/${requestId}/blueprint`)
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to generate preview')
+      }
+
+      const data = await response.json()
+      setWorkflowPreview(data.blueprint)
+      setShowWorkflowPreview(true)
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to load workflow preview',
+        variant: 'destructive',
+      })
+    } finally {
+      setLoadingPreview(false)
+    }
+  }
+
   const pendingRequests = requests.filter(r => r.status === 'pending')
   const otherRequests = requests.filter(r => r.status !== 'pending')
 
@@ -188,8 +226,8 @@ export default function AdminRequestsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Agent Requests</h1>
-        <p className="text-muted-foreground mt-1">
+        <h1 className="text-2xl sm:text-3xl font-bold">Agent Requests</h1>
+        <p className="text-muted-foreground mt-1 text-sm sm:text-base">
           Review and manage agent creation and modification requests
         </p>
       </div>
@@ -201,14 +239,14 @@ export default function AdminRequestsPage() {
           {pendingRequests.map((request) => (
             <Card key={request.id}>
               <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <CardTitle>{request.name || getRequestTypeLabel(request.request_type)}</CardTitle>
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                  <div className="space-y-1 flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <CardTitle className="break-words">{request.name || getRequestTypeLabel(request.request_type)}</CardTitle>
                       {getStatusBadge(request.status)}
-                      <Badge variant="outline">{request.priority}</Badge>
+                      <Badge variant="outline" className="text-xs">{request.priority}</Badge>
                     </div>
-                    <CardDescription>
+                    <CardDescription className="text-xs sm:text-sm break-words">
                       {getRequestTypeLabel(request.request_type)} • {request.profiles?.email || 'Unknown user'} • {new Date(request.created_at).toLocaleDateString()}
                     </CardDescription>
                   </div>
@@ -216,6 +254,7 @@ export default function AdminRequestsPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => setSelectedRequest(request)}
+                    className="w-full sm:w-auto"
                   >
                     <Eye className="mr-2 h-4 w-4" />
                     Review
@@ -242,15 +281,15 @@ export default function AdminRequestsPage() {
             {otherRequests.map((request) => (
               <Card key={request.id}>
                 <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <CardTitle className="text-base">{request.name || getRequestTypeLabel(request.request_type)}</CardTitle>
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                    <div className="space-y-2 flex-1 min-w-0">
+                      <CardTitle className="text-base break-words">{request.name || getRequestTypeLabel(request.request_type)}</CardTitle>
+                      <div className="flex items-center gap-2 flex-wrap">
                         {getStatusBadge(request.status)}
+                        <CardDescription className="text-xs sm:text-sm break-words">
+                          {request.profiles?.email || 'Unknown user'} • {new Date(request.created_at).toLocaleDateString()}
+                        </CardDescription>
                       </div>
-                      <CardDescription>
-                        {request.profiles?.email || 'Unknown user'} • {new Date(request.created_at).toLocaleDateString()}
-                      </CardDescription>
                     </div>
                   </div>
                 </CardHeader>
@@ -262,71 +301,120 @@ export default function AdminRequestsPage() {
 
       {/* Review Modal */}
       {selectedRequest && (
-        <Card className="fixed inset-4 z-50 max-w-2xl mx-auto overflow-y-auto">
-          <CardHeader>
-            <CardTitle>Review Request</CardTitle>
-            <CardDescription>
-              {getRequestTypeLabel(selectedRequest.request_type)} from {selectedRequest.profiles?.email}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label>Request Details</Label>
-              <div className="mt-2 p-4 bg-muted rounded-lg space-y-2">
-                <div>
-                  <span className="font-medium">Name:</span> {selectedRequest.name || 'N/A'}
-                </div>
-                {selectedRequest.description && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <CardHeader>
+              <CardTitle>Review Request</CardTitle>
+              <CardDescription className="break-words">
+                {getRequestTypeLabel(selectedRequest.request_type)} from {selectedRequest.profiles?.email}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>Request Details</Label>
+                <div className="mt-2 p-4 bg-muted rounded-lg space-y-2">
                   <div>
-                    <span className="font-medium">Description:</span>
-                    <p className="mt-1 text-sm">{selectedRequest.description}</p>
+                    <span className="font-medium">Name:</span> {selectedRequest.name || 'N/A'}
                   </div>
-                )}
-                <div>
-                  <span className="font-medium">Priority:</span> {selectedRequest.priority}
+                  {selectedRequest.description && (
+                    <div>
+                      <span className="font-medium">Description:</span>
+                      <p className="mt-1 text-sm break-words">{selectedRequest.description}</p>
+                    </div>
+                  )}
+                  <div>
+                    <span className="font-medium">Priority:</span> {selectedRequest.priority}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div>
-              <Label htmlFor="admin_notes">Admin Notes</Label>
-              <Textarea
-                id="admin_notes"
-                value={adminNotes}
-                onChange={(e) => setAdminNotes(e.target.value)}
-                placeholder="Add notes about this request..."
-                rows={4}
-              />
-            </div>
+              {selectedRequest.request_type === 'create' && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label>Workflow Preview</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => loadWorkflowPreview(selectedRequest.id)}
+                      disabled={loadingPreview}
+                    >
+                      {loadingPreview ? (
+                        <>
+                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                          Generating...
+                        </>
+                      ) : showWorkflowPreview ? (
+                        <>
+                          <ChevronUp className="mr-2 h-4 w-4" />
+                          Hide Preview
+                        </>
+                      ) : (
+                        <>
+                          <FileJson className="mr-2 h-4 w-4" />
+                          Preview Workflow
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  {showWorkflowPreview && workflowPreview && (
+                    <div className="mt-2 p-4 bg-muted rounded-lg max-h-96 overflow-y-auto">
+                      <pre className="text-xs font-mono whitespace-pre-wrap break-words">
+                        {JSON.stringify(workflowPreview, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                  {showWorkflowPreview && !workflowPreview && (
+                    <div className="mt-2 p-4 bg-muted rounded-lg text-sm text-muted-foreground">
+                      No workflow preview available
+                    </div>
+                  )}
+                </div>
+              )}
 
-            <div className="flex gap-2">
-              <Button
-                onClick={() => handleApprove(selectedRequest.id)}
-                disabled={actionLoading === selectedRequest.id}
-                className="flex-1"
-              >
-                {actionLoading === selectedRequest.id ? 'Processing...' : 'Approve'}
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={() => handleReject(selectedRequest.id)}
-                disabled={actionLoading === selectedRequest.id}
-                className="flex-1"
-              >
-                Reject
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setSelectedRequest(null)
-                  setAdminNotes('')
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+              <div>
+                <Label htmlFor="admin_notes">Admin Notes</Label>
+                <Textarea
+                  id="admin_notes"
+                  value={adminNotes}
+                  onChange={(e) => setAdminNotes(e.target.value)}
+                  placeholder="Add notes about this request..."
+                  rows={4}
+                />
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button
+                  onClick={() => handleApprove(selectedRequest.id)}
+                  disabled={actionLoading === selectedRequest.id}
+                  className="flex-1"
+                >
+                  {actionLoading === selectedRequest.id ? 'Processing...' : 'Approve'}
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => handleReject(selectedRequest.id)}
+                  disabled={actionLoading === selectedRequest.id}
+                  className="flex-1"
+                >
+                  Reject
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSelectedRequest(null)
+                    setAdminNotes('')
+                    setShowWorkflowPreview(false)
+                    setWorkflowPreview(null)
+                  }}
+                  className="w-full sm:w-auto"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   )

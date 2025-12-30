@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Clock, CheckCircle, XCircle, Eye } from 'lucide-react'
+import { Plus, Clock, CheckCircle, XCircle, Eye, MessageSquare } from 'lucide-react'
 import Link from 'next/link'
 
 interface AgentRequest {
@@ -93,15 +93,15 @@ export default function ClientRequestsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Agent Requests</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold">Agent Requests</h1>
+          <p className="text-muted-foreground mt-1 text-sm sm:text-base">
             View and manage your agent creation and modification requests
           </p>
         </div>
-        <Link href="/client/requests/create">
-          <Button>
+        <Link href="/client/requests/create" className="w-full sm:w-auto">
+          <Button className="w-full sm:w-auto">
             <Plus className="mr-2 h-4 w-4" />
             New Request
           </Button>
@@ -126,18 +126,18 @@ export default function ClientRequestsPage() {
           {requests.map((request) => (
             <Card key={request.id}>
               <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <CardTitle>{request.name || getRequestTypeLabel(request.request_type)}</CardTitle>
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                  <div className="space-y-2 flex-1 min-w-0">
+                    <CardTitle className="break-words">{request.name || getRequestTypeLabel(request.request_type)}</CardTitle>
+                    <div className="flex items-center gap-2 flex-wrap">
                       {getStatusBadge(request.status)}
+                      <CardDescription className="text-xs sm:text-sm">
+                        {getRequestTypeLabel(request.request_type)} • {new Date(request.created_at).toLocaleDateString()}
+                      </CardDescription>
                     </div>
-                    <CardDescription>
-                      {getRequestTypeLabel(request.request_type)} • {new Date(request.created_at).toLocaleDateString()}
-                    </CardDescription>
                   </div>
-                  <Link href={`/client/requests/${request.id}`}>
-                    <Button variant="outline" size="sm">
+                  <Link href={`/client/requests/${request.id}`} className="w-full sm:w-auto">
+                    <Button variant="outline" size="sm" className="w-full sm:w-auto">
                       <Eye className="mr-2 h-4 w-4" />
                       View
                     </Button>

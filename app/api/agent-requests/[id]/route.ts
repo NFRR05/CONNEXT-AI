@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { rateLimiters } from '@/lib/rate-limit-supabase'
 import { adminRequestUpdateSchema, validateInput } from '@/lib/validation'
+import crypto from 'crypto'
 
 // GET: Get a specific request
 export async function GET(

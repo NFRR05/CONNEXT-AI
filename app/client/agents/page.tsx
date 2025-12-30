@@ -54,8 +54,8 @@ export default function ClientAgentsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">My Agents</h1>
-        <p className="text-muted-foreground mt-1">
+        <h1 className="text-2xl sm:text-3xl font-bold">My Agents</h1>
+        <p className="text-muted-foreground mt-1 text-sm sm:text-base">
           View your active AI agents
         </p>
       </div>
@@ -74,18 +74,18 @@ export default function ClientAgentsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {agents.map((agent) => (
             <Card key={agent.id}>
               <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="space-y-1">
-                    <CardTitle>{agent.name}</CardTitle>
-                    <CardDescription>
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                  <div className="space-y-1 flex-1 min-w-0">
+                    <CardTitle className="break-words">{agent.name}</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">
                       Created {new Date(agent.created_at).toLocaleDateString()}
                     </CardDescription>
                   </div>
-                  <Badge variant="default">Active</Badge>
+                  <Badge variant="default" className="w-fit">Active</Badge>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
