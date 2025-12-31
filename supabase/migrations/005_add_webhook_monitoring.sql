@@ -88,3 +88,4 @@ CREATE POLICY "Service role can manage webhook activity"
   USING (true)
   WITH CHECK (true);
 
+

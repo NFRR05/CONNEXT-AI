@@ -449,3 +449,4 @@ Make it executable: `chmod +x setup-n8n.sh`
 - n8n Community: https://community.n8n.io
 - Docker Documentation: https://docs.docker.com
 
+

@@ -76,3 +76,4 @@ CREATE POLICY "Service role can manage rate limits"
   USING (true)
   WITH CHECK (true);
 
+
