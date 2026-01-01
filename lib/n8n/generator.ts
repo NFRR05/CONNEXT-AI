@@ -282,11 +282,11 @@ Complex connection (If/Switch with branches):
 
 === WORKFLOW REQUIREMENTS ===
 1. Webhook node:
-   - Name: "Vapi Webhook"
+   - Name: "Twilio Webhook"
    - Type: "n8n-nodes-base.webhook"
    - typeVersion: 2
    - parameters.httpMethod: "POST"
-   - parameters.path: "vapi-webhook"
+   - parameters.path: "twilio-webhook"
    - parameters.responseMode: "responseNode"
    - Position: [250, 300]
 
@@ -387,27 +387,27 @@ function generateN8nBlueprintTemplate(
   const positionCalc = new NodePositionCalculator(250, 300)
   const nodes: any[] = []
   const connections: any = {}
-  let lastNodeName = 'Vapi Webhook'
+  let lastNodeName = 'Twilio Webhook'
 
   // Generate unique IDs
   const generateId = () => generateNodeId()
 
-  // 1. Webhook Node (always first)
+  // 1. Webhook Node (always first) - Twilio
   const webhookNodeId = generateId()
   const webhookPosition = positionCalc.getCurrentPosition()
   nodes.push({
     parameters: {
       httpMethod: 'POST',
-      path: 'vapi-webhook',
+      path: 'twilio-webhook',
       responseMode: 'responseNode',
       options: {},
     },
     id: webhookNodeId,
-    name: 'Vapi Webhook',
+    name: 'Twilio Webhook',
     type: 'n8n-nodes-base.webhook',
     typeVersion: 2,
     position: webhookPosition,
-    webhookId: `vapi-call-${Date.now()}`,
+    webhookId: `twilio-call-${Date.now()}`,
   })
 
   // 2. Data Validation Nodes (if enabled)
@@ -919,12 +919,12 @@ function enforceEngineeringStandards(
   // ENGINEERING STANDARD 3: Fix connections
   if (!blueprint.connections || Object.keys(blueprint.connections).length === 0) {
     // Rebuild connections if missing
-    const webhookNode = blueprint.nodes.find(n => n.name === 'Vapi Webhook')
+    const webhookNode = blueprint.nodes.find(n => n.name === 'Twilio Webhook')
     const httpNode = blueprint.nodes.find(n => n.name === 'CONNEXT AI Ingest')
 
     if (webhookNode && httpNode) {
       blueprint.connections = {
-        'Vapi Webhook': {
+        'Twilio Webhook': {
           main: [
             [
               {

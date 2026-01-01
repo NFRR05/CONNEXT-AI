@@ -66,6 +66,24 @@ services:
       timeout: 5s
       retries: 5
 
+  # WebSocket Server for Twilio Media Streams
+  websocket-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.websocket
+    container_name: websocket-server
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - WS_PORT=8080
+      - NODE_ENV=development
+    networks:
+      - n8n_network
+
 volumes:
   n8n_data:
     driver: local

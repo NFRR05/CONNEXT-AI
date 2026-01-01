@@ -253,33 +253,38 @@ async function implementAgentRequest(
       throw new Error('User profile not found')
     }
 
-    // Create new agent
-    // Import agent creation logic from agents route
+    // Create new agent (Twilio ONLY)
+    // Import agent creation logic
     const { generateAgentConfig } = await import('@/lib/openai/client')
-    const { createAssistant } = await import('@/lib/vapi/client')
+    const { purchasePhoneNumber } = await import('@/lib/twilio/client')
     
     if (!request.description) {
       throw new Error('Description is required for agent creation')
     }
 
-    // Generate agent config
-    const agentConfig = await generateAgentConfig(request.description)
+    // Generate agent config with comprehensive form data
+    const agentConfig = await generateAgentConfig(
+      request.description,
+      request.form_data // Pass structured form data for enhanced prompt generation
+    )
     
-    // Create Vapi assistant
-    const vapiApiKey = process.env.VAPI_API_KEY
-    if (!vapiApiKey) {
-      throw new Error('Vapi API key not configured')
-    }
-
     const systemPromptStr = agentConfig.systemPrompt || request.description
     const agentName = request.name || systemPromptStr.substring(0, 50).trim() || 'Untitled Agent'
 
-    const vapiAssistant = await createAssistant(vapiApiKey, {
-      name: agentName,
-      firstMessage: systemPromptStr,
-      model: 'gpt-3.5-turbo',
-      voiceId: agentConfig.voiceId || request.voice_id || undefined,
-    })
+    // Purchase Twilio phone number
+    let twilioPhoneNumber = null
+    try {
+      twilioPhoneNumber = await purchasePhoneNumber({
+        areaCode: null, // Use default area code
+      })
+      console.log('[Agent Request] Twilio phone number purchased:', {
+        sid: twilioPhoneNumber.sid,
+        phoneNumber: twilioPhoneNumber.phoneNumber,
+      })
+    } catch (error) {
+      console.error('[Agent Request] Twilio phone number purchase error:', error)
+      throw new Error(`Failed to purchase Twilio phone number: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
 
     // Generate API secret
     const apiSecret = crypto.randomUUID().replace(/-/g, '')
@@ -316,14 +321,17 @@ async function implementAgentRequest(
       throw new Error(`Failed to create n8n workflow: ${error instanceof Error ? error.message : 'Unknown error'}. Agent creation aborted.`)
     }
 
-    // Create agent in database
+    // Create agent in database (Twilio ONLY)
     const { data: agent, error: agentError } = await supabase
       .from('agents')
       .insert({
         user_id: request.user_id,
         name: agentName,
-        vapi_assistant_id: vapiAssistant.id,
-        vapi_phone_number_id: null,
+        provider_type: 'twilio', // ALWAYS Twilio
+        twilio_phone_number_sid: twilioPhoneNumber?.sid || null,
+        twilio_phone_number: twilioPhoneNumber?.phoneNumber || null,
+        vapi_assistant_id: null, // Always null
+        vapi_phone_number_id: null, // Always null
         api_secret: apiSecret,
         system_prompt: agentConfig.systemPrompt || systemPromptStr,
         voice_id: agentConfig.voiceId || request.voice_id || null,
@@ -378,25 +386,8 @@ async function implementAgentRequest(
       throw new Error('Agent not found')
     }
 
-    // Update Vapi assistant if system_prompt or voice_id changed
-    if ((request.system_prompt !== undefined || request.voice_id !== undefined) && agent.vapi_assistant_id) {
-      const vapiApiKey = process.env.VAPI_API_KEY
-      if (vapiApiKey) {
-        const vapiUpdateBody: any = {}
-        if (request.name) vapiUpdateBody.name = request.name
-        if (request.system_prompt !== undefined) vapiUpdateBody.firstMessage = request.system_prompt
-        if (request.voice_id !== undefined) vapiUpdateBody.voice = request.voice_id
-
-        await fetch(`https://api.vapi.ai/assistant/${agent.vapi_assistant_id}`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${vapiApiKey}`,
-          },
-          body: JSON.stringify(vapiUpdateBody),
-        })
-      }
-    }
+    // For Twilio agents, no external API updates needed
+    // System prompt and voice_id are stored in database and used by WebSocket server
 
     const { data: updatedAgent, error: updateError } = await supabase
       .from('agents')

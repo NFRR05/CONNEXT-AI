@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { description, name, formData, workflowConfig } = validation.data
+    const { description, name, formData, workflowConfig, provider_type, area_code, voice_id } = validation.data
 
     // Step 1: Generate agent config using OpenAI
     console.log('[Agent Creation] Step 4: Generating agent config with OpenAI...')
@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
     let agentConfig
     try {
       console.log('[Agent Creation] Calling generateAgentConfig with description length:', description.length)
-      agentConfig = await generateAgentConfig(description)
+      agentConfig = await generateAgentConfig(description, formData) // Pass formData for enhanced prompt generation
       console.log('[Agent Creation] OpenAI config generated successfully')
     } catch (error) {
       console.error('[Agent Creation] OpenAI error:', {
@@ -176,26 +176,10 @@ export async function POST(request: NextRequest) {
       toolsLength: agentConfig.tools?.length || 0,
     })
 
-    // Step 2: Create assistant in Vapi
-    console.log('[Agent Creation] Step 5: Creating VAPI assistant...')
-    const { createAssistant } = await import('@/lib/vapi/client')
-    const vapiApiKey = process.env.VAPI_API_KEY
+    // Step 2: Create Twilio agent (ONLY provider)
+    console.log('[Agent Creation] Step 5: Creating Twilio agent...')
     
-    if (!vapiApiKey) {
-      console.error('[Agent Creation] VAPI_API_KEY environment variable is not set')
-      return NextResponse.json(
-        { error: 'Vapi API key not configured' },
-        { status: 500 }
-      )
-    }
-    
-    console.log('[Agent Creation] VAPI API key found:', {
-      keyLength: vapiApiKey.length,
-      keyPrefix: vapiApiKey.substring(0, 10) + '...',
-    })
-
     // Generate a safe name from systemPrompt or use provided name
-    // Ensure systemPrompt is a valid string before calling substring
     console.log('[Agent Creation] Step 6: Processing system prompt and agent name...')
     let systemPromptStr: string = 'Untitled Agent'
     
@@ -238,54 +222,21 @@ export async function POST(request: NextRequest) {
       agentName = name || description || 'Untitled Agent'
     }
     
-    const firstMessage: string = systemPromptStr || description || 'Hello, how can I help you?'
-    console.log('[Agent Creation] Final values:', {
-      agentName,
-      firstMessageLength: firstMessage.length,
-      firstMessagePreview: firstMessage.substring(0, 100),
-    })
-
-    let vapiAssistant
+    // Purchase Twilio phone number
+    let twilioPhoneNumber = null
+    const { purchasePhoneNumber } = await import('@/lib/twilio/client')
+    
     try {
-      const vapiParams: any = {
-        name: agentName,
-        firstMessage: firstMessage, // Vapi uses firstMessage instead of systemPrompt
-        model: 'gpt-3.5-turbo',
-      }
-      
-      // Only add voiceId if it's provided and not null
-      if (agentConfig.voiceId) {
-        vapiParams.voiceId = agentConfig.voiceId
-      }
-      
-      console.log('[Agent Creation] Calling VAPI createAssistant with params:', {
-        name: vapiParams.name,
-        firstMessageLength: vapiParams.firstMessage.length,
-        hasVoiceId: !!vapiParams.voiceId,
-        voiceId: vapiParams.voiceId || 'using Vapi default',
-        model: vapiParams.model,
+      twilioPhoneNumber = await purchasePhoneNumber({
+        areaCode: area_code,
       })
-      
-      vapiAssistant = await createAssistant(vapiApiKey, vapiParams)
-      console.log('[Agent Creation] VAPI assistant created successfully:', {
-        assistantId: vapiAssistant.id,
-        assistantName: vapiAssistant.name,
+      console.log('[Agent Creation] Twilio phone number purchased:', {
+        sid: twilioPhoneNumber.sid,
+        phoneNumber: twilioPhoneNumber.phoneNumber,
       })
     } catch (error) {
-      console.error('[Agent Creation] Vapi error:', {
-        error,
-        errorType: error instanceof Error ? error.constructor.name : typeof error,
-        errorMessage: error instanceof Error ? error.message : String(error),
-        errorStack: error instanceof Error ? error.stack : undefined,
-      })
-      const errorMessage = error instanceof Error ? error.message : 'Failed to create Vapi assistant'
-      // Provide more helpful error message
-      if (errorMessage.includes('401') || errorMessage.includes('Unauthorized')) {
-        return NextResponse.json(
-          { error: 'Invalid Vapi API key. Please check your VAPI_API_KEY environment variable in Vercel.' },
-          { status: 500 }
-        )
-      }
+      console.error('[Agent Creation] Twilio phone number purchase error:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Failed to purchase Twilio phone number'
       return NextResponse.json(
         { error: errorMessage },
         { status: 500 }
@@ -328,22 +279,33 @@ export async function POST(request: NextRequest) {
     }
     
     console.log('[Agent Creation] Profile verified, preparing database insert...')
-    const insertData = {
+    // Use voice_id from request if provided (and not empty string), otherwise from agentConfig, or null
+    const finalVoiceId = (voice_id && typeof voice_id === 'string' && voice_id.trim() !== '') ? voice_id : (agentConfig.voiceId || null)
+    
+    const insertData: any = {
       user_id: user.id,
       name: agentName,
-      vapi_assistant_id: vapiAssistant.id,
-      vapi_phone_number_id: null, // Can be added later
       api_secret: apiSecret,
       system_prompt: agentConfig.systemPrompt,
-      voice_id: agentConfig.voiceId || null,
+      voice_id: finalVoiceId,
+      provider_type: 'twilio', // ALWAYS Twilio
       form_data: formData || {},
       workflow_config: workflowConfig || {},
+      // Twilio-specific fields
+      twilio_phone_number_sid: twilioPhoneNumber?.sid || null,
+      twilio_phone_number: twilioPhoneNumber?.phoneNumber || null,
+      // Vapi fields always null
+      vapi_assistant_id: null,
+      vapi_phone_number_id: null,
     }
     
     console.log('[Agent Creation] Insert data prepared:', {
       userId: insertData.user_id,
       name: insertData.name,
+      providerType: insertData.provider_type,
       vapiAssistantId: insertData.vapi_assistant_id,
+      twilioPhoneNumberSid: insertData.twilio_phone_number_sid,
+      twilioPhoneNumber: insertData.twilio_phone_number,
       apiSecretLength: insertData.api_secret.length,
       systemPromptLength: insertData.system_prompt?.length || 0,
       voiceId: insertData.voice_id,

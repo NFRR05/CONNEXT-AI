@@ -200,7 +200,7 @@ export function AgentSetupModal({
                           {useOwnNumber ? (
                             <div className="space-y-3 p-4 bg-muted rounded-md">
                               <p className="text-sm text-muted-foreground">
-                                You can use your existing business phone number. We&apos;ll provide you with a Vapi number
+                                You can use your existing business phone number. We&apos;ll provide you with a Twilio number
                                 that you&apos;ll forward your calls to.
                               </p>
                               <div className="space-y-2">
@@ -221,16 +221,16 @@ export function AgentSetupModal({
                                 disabled={provisioningPhone || !ownPhoneNumber}
                                 className="w-full"
                               >
-                                {provisioningPhone ? 'Provisioning...' : 'Get Vapi Number for Forwarding'}
+                                {provisioningPhone ? 'Provisioning...' : 'Get Twilio Number for Forwarding'}
                               </Button>
                               <p className="text-xs text-muted-foreground">
-                                After provisioning, you&apos;ll set up call forwarding from your number to the Vapi number.
+                                After provisioning, you&apos;ll set up call forwarding from your number to the Twilio number.
                               </p>
                             </div>
                           ) : (
                             <div className="space-y-3">
                               <p className="text-sm text-muted-foreground">
-                                Click the button below to automatically provision a phone number from Vapi.
+                                Click the button below to automatically provision a phone number from Twilio.
                                 This number will be used for your voice AI agent.
                               </p>
                               <Button
@@ -332,7 +332,7 @@ export function AgentSetupModal({
                               <div className="p-4 bg-primary/10 border border-primary/20 rounded-md text-center">
                                 <p className="text-sm text-muted-foreground mb-1">Test by calling:</p>
                                 <p className="text-2xl font-bold">{phoneNumber}</p>
-                                <p className="text-xs text-muted-foreground mt-1">(Vapi number for testing)</p>
+                                <p className="text-xs text-muted-foreground mt-1">(Twilio number for testing)</p>
                               </div>
                             </div>
                           ) : (

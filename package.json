@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "ws-server": "tsx server/websocket-server.ts",
+    "ws-server:dev": "tsx watch server/websocket-server.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -29,6 +31,9 @@
     "next": "^14.2.0",
     "openai": "^4.28.0",
     "react": "^18.3.0",
+    "twilio": "^5.0.0",
+    "ws": "^8.18.0",
+    "tsx": "^4.7.0",
     "react-dom": "^18.3.0",
     "react-hook-form": "^7.69.0",
     "tailwind-merge": "^2.2.1",
@@ -39,6 +44,7 @@
     "@types/node": "^20.11.5",
     "@types/react": "^18.2.48",
     "@types/react-dom": "^18.2.18",
+    "@types/ws": "^8.5.10",
     "autoprefixer": "^10.4.17",
     "eslint": "^8.56.0",
     "eslint-config-next": "^14.2.0",

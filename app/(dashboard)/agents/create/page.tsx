@@ -6,6 +6,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { AgentSetupModal } from '@/components/agent-setup-modal'
 import { ArrowLeft, ArrowRight, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
@@ -66,6 +73,7 @@ interface FormData {
   additionalInfo: string
   businessName: string
   agentName: string
+  voice_id: string | null
   workflowConfig: WorkflowConfig
 }
 
@@ -116,6 +124,16 @@ const TONES = [
   'Enthusiastic & Energetic'
 ]
 
+const VOICE_OPTIONS = [
+  { id: '', label: 'Default (Auto-select)', description: 'System will choose best voice' },
+  { id: 'alloy', label: 'Alloy', description: 'Neutral, balanced voice' },
+  { id: 'echo', label: 'Echo', description: 'Male, middle-aged, confident' },
+  { id: 'fable', label: 'Fable', description: 'Male, professional, articulate' },
+  { id: 'onyx', label: 'Onyx', description: 'Deep male voice, authoritative' },
+  { id: 'nova', label: 'Nova', description: 'Young female, friendly and energetic' },
+  { id: 'shimmer', label: 'Shimmer', description: 'Warm female voice, caring and empathetic' },
+]
+
 export default function CreateAgentPage() {
   const router = useRouter()
   const [step, setStep] = useState(1)
@@ -134,6 +152,7 @@ export default function CreateAgentPage() {
     additionalInfo: '',
     businessName: '',
     agentName: '',
+    voice_id: null,
     workflowConfig: {
       validatePhone: true,
       validateEmail: false,
@@ -265,6 +284,7 @@ export default function CreateAgentPage() {
         body: JSON.stringify({
           description,
           name: formData.agentName || undefined,
+          voice_id: formData.voice_id || undefined,
           formData: {
             businessType: formData.businessType,
             agentPurpose: formData.agentPurpose,
@@ -424,33 +444,67 @@ export default function CreateAgentPage() {
 
       case 4:
         return (
-          <div className="space-y-4">
+          <div className="space-y-6">
             <div>
               <h3 className="text-lg font-semibold mb-2">How should your agent sound?</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Select the tone and personality that matches your brand
+                Select the tone, personality, and voice that matches your brand
               </p>
             </div>
-            <div className="space-y-2">
-              {TONES.map((tone) => (
-                <label
-                  key={tone}
-                  className={cn(
-                    'flex items-center space-x-3 p-3 rounded-lg border cursor-pointer transition-all',
-                    formData.tone.includes(tone)
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:bg-accent'
-                  )}
-                >
-                  <input
-                    type="checkbox"
-                    checked={formData.tone.includes(tone)}
-                    onChange={() => toggleArrayField('tone', tone)}
-                    className="rounded border-gray-300"
-                  />
-                  <span className="text-sm font-medium">{tone}</span>
-                </label>
-              ))}
+            
+            {/* Tone Selection */}
+            <div>
+              <h4 className="text-sm font-medium mb-3">Tone & Personality</h4>
+              <div className="space-y-2">
+                {TONES.map((tone) => (
+                  <label
+                    key={tone}
+                    className={cn(
+                      'flex items-center space-x-3 p-3 rounded-lg border cursor-pointer transition-all',
+                      formData.tone.includes(tone)
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:bg-accent'
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={formData.tone.includes(tone)}
+                      onChange={() => toggleArrayField('tone', tone)}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm font-medium">{tone}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Voice Selection */}
+            <div>
+              <h4 className="text-sm font-medium mb-3">Voice Character</h4>
+              <p className="text-xs text-muted-foreground mb-3">
+                Choose a specific voice for your agent. Each voice has a different age, gender, and personality.
+              </p>
+              <Select
+                value={formData.voice_id || ''}
+                onValueChange={(value) => updateFormData('voice_id', value === '' ? null : value)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a voice (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {VOICE_OPTIONS.map((voice) => (
+                    <SelectItem key={voice.id || 'default'} value={voice.id}>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{voice.label}</span>
+                        <span className="text-xs text-muted-foreground">{voice.description}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-2">
+                💡 <strong>Tip:</strong> A plumber might want &quot;Echo&quot; (middle-aged man), while a restaurant might prefer &quot;Nova&quot; (young, friendly). Leave as default to let the system choose.
+              </p>
             </div>
           </div>
         )

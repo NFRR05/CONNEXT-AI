@@ -1,0 +1,22 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+COPY tsconfig.json ./
+
+# Install dependencies
+RUN npm ci
+
+# Copy source files needed for WebSocket server
+COPY server/ ./server/
+COPY lib/ ./lib/
+COPY types/ ./types/
+
+# Expose port
+EXPOSE 8080
+
+# Start server using tsx
+CMD ["npx", "tsx", "server/websocket-server.ts"]
+

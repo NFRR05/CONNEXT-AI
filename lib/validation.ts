@@ -56,6 +56,19 @@ export const agentCreationSchema = z.object({
     .trim()
     .optional(),
   
+  voice_id: z.string()
+    .max(100)
+    .optional()
+    .nullable(),
+  
+  provider_type: z.enum(['twilio'])
+    .optional()
+    .default('twilio'),
+  
+  area_code: z.string()
+    .regex(/^\d{3}$/, 'Area code must be 3 digits')
+    .optional(),
+  
   formData: z.record(z.any())
     .optional(),
   
