@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
+import { GlassCard, GlassCardContent } from '@/components/ui/glass-card'
 import { Badge } from '@/components/ui/badge'
 import { createClient } from '@/lib/supabase/client'
 import { Phone, Calendar, Clock } from 'lucide-react'
@@ -24,13 +24,14 @@ export default function ClientLeadsPage() {
 
   useEffect(() => {
     fetchLeads()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const fetchLeads = async () => {
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      
+
       if (!user) return
 
       // Get user's agents
@@ -92,20 +93,20 @@ export default function ClientLeadsPage() {
       </div>
 
       {leads.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
+        <GlassCard>
+          <GlassCardContent className="flex flex-col items-center justify-center py-12">
             <Phone className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">No leads yet</h3>
             <p className="text-muted-foreground text-center">
               Leads will appear here once your agents start receiving calls
             </p>
-          </CardContent>
-        </Card>
+          </GlassCardContent>
+        </GlassCard>
       ) : (
         <div className="space-y-4">
           {leads.map((lead) => (
-            <Card key={lead.id}>
-              <CardContent className="pt-6">
+            <GlassCard key={lead.id}>
+              <GlassCardContent className="pt-6">
                 <div className="flex items-start justify-between">
                   <div className="space-y-2 flex-1">
                     <div className="flex items-center gap-2">
@@ -139,8 +140,8 @@ export default function ClientLeadsPage() {
                     </div>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </GlassCardContent>
+            </GlassCard>
           ))}
         </div>
       )}

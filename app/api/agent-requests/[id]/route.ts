@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { rateLimiters } from '@/lib/rate-limit-supabase'
 import { adminRequestUpdateSchema, validateInput } from '@/lib/validation'
+import { createErrorResponse, logError } from '@/lib/security/error-handler'
+import { sanitizeText } from '@/lib/security/sanitization'
 import crypto from 'crypto'
 
 // GET: Get a specific request
@@ -48,10 +50,11 @@ export async function GET(
 
     return NextResponse.json({ request }, { status: 200 })
   } catch (error) {
-    console.error('Error fetching request:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+    logError('Agent Request GET', error)
+    return createErrorResponse(
+      error,
+      'Internal server error',
+      500
     )
   }
 }
@@ -75,6 +78,12 @@ export async function PATCH(
     }
 
     const { id: requestId } = await params
+
+    console.log('[Agent Request PATCH] Received request:', {
+      requestId,
+      userId: user.id,
+      userEmail: user.email,
+    })
 
     // Rate limiting
     const rateLimit = await rateLimiters.apiGeneral(user.id)
@@ -104,9 +113,12 @@ export async function PATCH(
     let body
     try {
       body = await request.json()
+      // Don't log full body (may contain sensitive data)
+      console.log('[Agent Request PATCH] Request body received')
     } catch (error) {
+      logError('Agent Request PATCH', error)
       return NextResponse.json(
-        { error: 'Invalid JSON body' },
+        { error: 'Invalid JSON body', details: error instanceof Error ? error.message : 'Unknown error' },
         { status: 400 }
       )
     }
@@ -116,9 +128,11 @@ export async function PATCH(
     const isUserCancel = body.status === 'cancelled' && existingRequest.user_id === user.id && existingRequest.status === 'pending'
 
     if (isStatusUpdate) {
+      console.log('[Agent Request PATCH] Admin status update detected')
       // Admin action - validate input
       const validation = validateInput(adminRequestUpdateSchema, body)
       if (!validation.success) {
+        logError('Agent Request PATCH', new Error('Validation failed'))
         return NextResponse.json(
           { 
             error: 'Invalid input data',
@@ -127,6 +141,7 @@ export async function PATCH(
           { status: 400 }
         )
       }
+      console.log('[Agent Request PATCH] Validation passed, status:', validation.data.status)
 
       // Check if user is admin
       const { data: profile } = await supabase
@@ -177,22 +192,39 @@ export async function PATCH(
       // If approved, implement the request
       if (validation.data.status === 'approved') {
         try {
+          console.log('[Agent Request] Starting implementation for request:', requestId)
           await implementAgentRequest(updatedRequest, supabase)
+          console.log('[Agent Request] Successfully implemented request:', requestId)
         } catch (implError) {
-          console.error('Error implementing request:', implError)
+          console.error('[Agent Request] Error implementing request:', {
+            requestId,
+            error: implError,
+            message: implError instanceof Error ? implError.message : 'Unknown error',
+            stack: implError instanceof Error ? implError.stack : undefined,
+          })
+          
           // Update request status to indicate implementation failed
+          const errorMessage = implError instanceof Error ? implError.message : 'Unknown error'
+          try {
           await supabase
             .from('agent_requests')
             .update({ 
               status: 'pending',
-              admin_notes: `Approved but implementation failed: ${implError instanceof Error ? implError.message : 'Unknown error'}. Please review.`
+                admin_notes: `Approved but implementation failed: ${errorMessage}. Please review.`
             })
             .eq('id', requestId)
+          } catch (updateError) {
+            console.error('[Agent Request] Failed to update request status:', updateError)
+          }
           
+          // Return error with details for debugging
           return NextResponse.json(
             { 
               error: 'Request approved but implementation failed',
-              details: implError instanceof Error ? implError.message : 'Unknown error'
+              details: errorMessage,
+              requestId: requestId,
+              // Include more context for debugging
+              hint: 'Check server logs for detailed error information. Common issues: missing Twilio credentials, database constraint violations, or missing request data.',
             },
             { status: 500 }
           )
@@ -228,9 +260,24 @@ export async function PATCH(
       )
     }
   } catch (error) {
-    console.error('Error updating request:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorStack = error instanceof Error ? error.stack : undefined
+    
+    console.error('[Agent Request PATCH] Unexpected error:', {
+      error,
+      message: errorMessage,
+      stack: errorStack,
+      errorType: error?.constructor?.name,
+    })
+    
+    // Return detailed error for debugging
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: 'Internal server error',
+        details: errorMessage,
+        // Only include stack in development
+        ...(process.env.NODE_ENV === 'development' && errorStack ? { stack: errorStack } : {}),
+      },
       { status: 500 }
     )
   }
@@ -241,7 +288,26 @@ async function implementAgentRequest(
   request: any,
   supabase: any
 ) {
+  console.log('[implementAgentRequest] Starting implementation for request:', {
+    requestId: request.id,
+    requestType: request.request_type,
+    userId: request.user_id,
+    agentId: request.agent_id,
+  })
+
   if (request.request_type === 'create') {
+    // Check if user already has an agent (ONE AGENT PER CLIENT constraint)
+    const { data: existingAgent, error: existingError } = await supabase
+      .from('agents')
+      .select('id, name')
+      .eq('user_id', request.user_id)
+      .single()
+
+    if (existingAgent) {
+      console.error('[implementAgentRequest] User already has an agent:', existingAgent.id)
+      throw new Error(`User already has an agent (${existingAgent.name}). Cannot create another agent. Please update or delete the existing agent first.`)
+    }
+
     // Check user's subscription tier
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
@@ -250,7 +316,8 @@ async function implementAgentRequest(
       .single()
 
     if (profileError || !profile) {
-      throw new Error('User profile not found')
+      console.error('[implementAgentRequest] Profile error:', profileError)
+      throw new Error(`User profile not found: ${profileError?.message || 'Unknown error'}`)
     }
 
     // Create new agent (Twilio ONLY)
@@ -258,68 +325,64 @@ async function implementAgentRequest(
     const { generateAgentConfig } = await import('@/lib/openai/client')
     const { purchasePhoneNumber } = await import('@/lib/twilio/client')
     
-    if (!request.description) {
-      throw new Error('Description is required for agent creation')
+    // Use description or form_data to generate agent config
+    const description = request.description || 
+      (request.form_data ? JSON.stringify(request.form_data) : 'Create a helpful AI assistant')
+    
+    if (!description || description.trim() === '') {
+      throw new Error('Description or form_data is required for agent creation')
     }
 
+    console.log('[implementAgentRequest] Generating agent config with description length:', description.length)
+
     // Generate agent config with comprehensive form data
-    const agentConfig = await generateAgentConfig(
-      request.description,
+    let agentConfig
+    try {
+      agentConfig = await generateAgentConfig(
+        description,
       request.form_data // Pass structured form data for enhanced prompt generation
     )
-    
+      console.log('[implementAgentRequest] Agent config generated successfully')
+    } catch (error) {
+      console.error('[implementAgentRequest] Error generating agent config:', error)
+      throw new Error(`Failed to generate agent config: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+
     const systemPromptStr = agentConfig.systemPrompt || request.description
     const agentName = request.name || systemPromptStr.substring(0, 50).trim() || 'Untitled Agent'
 
     // Purchase Twilio phone number
     let twilioPhoneNumber = null
     try {
+      console.log('[implementAgentRequest] Purchasing Twilio phone number...')
+      
+      // Check if Twilio credentials are configured
+      if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
+        throw new Error('Twilio credentials not configured. Please set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in environment variables.')
+      }
+      
       twilioPhoneNumber = await purchasePhoneNumber({
-        areaCode: null, // Use default area code
+        areaCode: request.form_data?.area_code || null, // Use area code from form_data if available
       })
-      console.log('[Agent Request] Twilio phone number purchased:', {
+      console.log('[implementAgentRequest] Twilio phone number purchased:', {
         sid: twilioPhoneNumber.sid,
         phoneNumber: twilioPhoneNumber.phoneNumber,
       })
     } catch (error) {
-      console.error('[Agent Request] Twilio phone number purchase error:', error)
+      console.error('[implementAgentRequest] Twilio phone number purchase error:', {
+        error,
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+      })
       throw new Error(`Failed to purchase Twilio phone number: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
 
     // Generate API secret
     const apiSecret = crypto.randomUUID().replace(/-/g, '')
 
-    // Generate n8n blueprint
-    const { generateN8nBlueprint } = await import('@/lib/n8n/generator')
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-    const cleanUrl = appUrl.replace(/\/$/, '')
-    const webhookUrl = `${cleanUrl}/api/webhooks/ingest`
-
-    const blueprint = await generateN8nBlueprint({
-      webhookUrl,
-      agentSecret: apiSecret,
-      agentName: agentName,
-      formData: request.form_data || undefined,
-      workflowConfig: request.workflow_config || undefined,
-    })
-
-    // ALWAYS create hosted n8n workflow (centralized n8n instance)
-    // The admin hosts n8n and manages all workflows
-    let n8nWorkflowId: string | null = null
-    let n8nHostingType: 'self_hosted' | 'hosted' = 'hosted'
-
-    try {
-      const { createHostedWorkflow } = await import('@/lib/n8n/hosted')
-      const hostedWorkflow = await createHostedWorkflow(blueprint, apiSecret)
-      n8nWorkflowId = hostedWorkflow.id
-      n8nHostingType = 'hosted'
-      console.log(`[Agent Request] Successfully created n8n workflow ${n8nWorkflowId} for agent ${agentName}`)
-    } catch (error) {
-      console.error('[Agent Request] Failed to create hosted n8n workflow:', error)
-      // This is critical - if n8n workflow creation fails, we should still create the agent
-      // but log the error for admin review
-      throw new Error(`Failed to create n8n workflow: ${error instanceof Error ? error.message : 'Unknown error'}. Agent creation aborted.`)
-    }
+    // Admin will create n8n workflow manually and link it via n8n_workflow_id
+    const n8nWorkflowId: string | null = null
+    const n8nHostingType: 'self_hosted' | 'hosted' = 'hosted'
 
     // Create agent in database (Twilio ONLY)
     const { data: agent, error: agentError } = await supabase
@@ -344,10 +407,20 @@ async function implementAgentRequest(
       .single()
 
     if (agentError) {
-      throw new Error(`Failed to create agent: ${agentError.message}`)
+      console.error('[implementAgentRequest] Agent creation error:', {
+        error: agentError,
+        message: agentError.message,
+        code: agentError.code,
+        details: agentError.details,
+        hint: agentError.hint,
+      })
+      throw new Error(`Failed to create agent: ${agentError.message}${agentError.hint ? ` (${agentError.hint})` : ''}`)
     }
 
-    // Initialize webhook activity tracking
+    console.log('[implementAgentRequest] Agent created successfully:', agent.id)
+
+    // Initialize webhook activity tracking (optional - table might not exist)
+    try {
     await supabase
       .from('webhook_activity')
       .insert({
@@ -356,6 +429,11 @@ async function implementAgentRequest(
       })
       .onConflict('agent_id')
       .ignore()
+      console.log('[implementAgentRequest] Webhook activity initialized')
+    } catch (webhookError) {
+      console.warn('[implementAgentRequest] Failed to initialize webhook activity (table might not exist):', webhookError)
+      // Continue - this is not critical
+    }
 
     // Update request with agent_id
     await supabase

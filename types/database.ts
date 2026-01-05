@@ -85,82 +85,8 @@ export interface Database {
           updated_at?: string
         }
       }
-      twilio_call_sessions: {
-        Row: {
-          id: string
-          agent_id: string
-          call_sid: string
-          from_number: string
-          to_number: string
-          status: 'initiated' | 'ringing' | 'in-progress' | 'completed' | 'failed' | 'busy' | 'no-answer'
-          direction: 'inbound' | 'outbound' | null
-          duration: number | null
-          recording_url: string | null
-          recording_sid: string | null
-          started_at: string | null
-          ended_at: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          agent_id: string
-          call_sid: string
-          from_number: string
-          to_number: string
-          status?: 'initiated' | 'ringing' | 'in-progress' | 'completed' | 'failed' | 'busy' | 'no-answer'
-          direction?: 'inbound' | 'outbound' | null
-          duration?: number | null
-          recording_url?: string | null
-          recording_sid?: string | null
-          started_at?: string | null
-          ended_at?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          agent_id?: string
-          call_sid?: string
-          from_number?: string
-          to_number?: string
-          status?: 'initiated' | 'ringing' | 'in-progress' | 'completed' | 'failed' | 'busy' | 'no-answer'
-          direction?: 'inbound' | 'outbound' | null
-          duration?: number | null
-          recording_url?: string | null
-          recording_sid?: string | null
-          started_at?: string | null
-          ended_at?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-      }
-      twilio_media_streams: {
-        Row: {
-          id: string
-          call_sid: string
-          stream_sid: string
-          status: 'connected' | 'disconnected'
-          connected_at: string
-          disconnected_at: string | null
-        }
-        Insert: {
-          id?: string
-          call_sid: string
-          stream_sid: string
-          status?: 'connected' | 'disconnected'
-          connected_at?: string
-          disconnected_at?: string | null
-        }
-        Update: {
-          id?: string
-          call_sid?: string
-          stream_sid?: string
-          status?: 'connected' | 'disconnected'
-          connected_at?: string
-          disconnected_at?: string | null
-        }
-      }
+      // Removed twilio_call_sessions and twilio_media_streams tables (migration 014)
+      // n8n now handles all call processing
       leads: {
         Row: {
           id: string

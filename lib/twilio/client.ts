@@ -73,7 +73,7 @@ export async function purchasePhoneNumber(
       statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
       voiceMethod: 'POST',
       statusCallbackMethod: 'POST',
-    })
+    } as any)
 
     console.log('[Twilio Client] Phone number purchased:', {
       sid: purchasedNumber.sid,
@@ -103,7 +103,7 @@ export async function getPhoneNumber(
 
   try {
     const number = await client.incomingPhoneNumbers(phoneNumberSid).fetch()
-    
+
     return {
       sid: number.sid,
       phoneNumber: number.phoneNumber,
@@ -134,7 +134,7 @@ export async function updatePhoneNumberWebhooks(
       statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
       voiceMethod: 'POST',
       statusCallbackMethod: 'POST',
-    })
+    } as any)
 
     console.log('[Twilio Client] Phone number webhooks updated:', {
       phoneNumberSid,
@@ -173,7 +173,7 @@ export async function makeOutboundCall(params: {
       statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
       method: 'POST',
       statusCallbackMethod: 'POST',
-    })
+    } as any)
 
     console.log('[Twilio Client] Outbound call initiated:', {
       callSid: call.sid,

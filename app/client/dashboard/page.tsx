@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { GlassCard, GlassCardContent, GlassCardDescription, GlassCardHeader, GlassCardTitle } from '@/components/ui/glass-card'
 import { Button } from '@/components/ui/button'
+import { StatsCardsWithLinks, type StatsCardWithLinkData } from '@/components/ui/stats-cards-with-links'
 import { createClient } from '@/lib/supabase/client'
 import { MessageSquare, Clock, CheckCircle, XCircle, Plus, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
@@ -31,7 +32,7 @@ export default function ClientDashboard() {
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      
+
       if (!user) return
 
       // Fetch active agents
@@ -51,14 +52,14 @@ export default function ClientDashboard() {
       const { count: leadsCount } = await supabase
         .from('leads')
         .select('*', { count: 'exact', head: true })
-        .in('agent_id', 
+        .in('agent_id',
           (await supabase.from('agents').select('id').eq('user_id', user.id)).data?.map(a => a.id) || []
         )
 
       // Fetch recent leads (last 7 days)
       const sevenDaysAgo = new Date()
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-      
+
       const { count: recentLeadsCount } = await supabase
         .from('leads')
         .select('*', { count: 'exact', head: true })
@@ -93,109 +94,87 @@ export default function ClientDashboard() {
             Overview of your agents and requests
           </p>
         </div>
-        <Link href="/client/requests/create" className="w-full sm:w-auto">
-          <Button className="w-full sm:w-auto">
-            <Plus className="mr-2 h-4 w-4" />
-            New Request
+        <Link href="/client/requests" className="w-full sm:w-auto">
+          <Button variant="outline" className="w-full sm:w-auto">
+            View Requests
           </Button>
         </Link>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Agents</CardTitle>
-            <MessageSquare className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.activeAgents}</div>
-            <p className="text-xs text-muted-foreground">
-              Currently active
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Requests</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.pendingRequests}</div>
-            <p className="text-xs text-muted-foreground">
-              Awaiting approval
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Leads</CardTitle>
-            <CheckCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalLeads}</div>
-            <p className="text-xs text-muted-foreground">
-              All time
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Recent Leads</CardTitle>
-            <ArrowRight className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.recentLeads}</div>
-            <p className="text-xs text-muted-foreground">
-              Last 7 days
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      <StatsCardsWithLinks
+        data={[
+          {
+            name: "Active Agents",
+            value: stats.activeAgents.toString(),
+            change: stats.activeAgents > 0 ? "+" + stats.activeAgents : undefined,
+            changeType: stats.activeAgents > 0 ? "positive" : undefined,
+            href: "/client/agents",
+          },
+          {
+            name: "Pending Requests",
+            value: stats.pendingRequests.toString(),
+            change: stats.pendingRequests > 0 ? stats.pendingRequests.toString() : undefined,
+            changeType: stats.pendingRequests > 0 ? "negative" : undefined,
+            href: "/client/requests",
+          },
+          {
+            name: "Total Leads",
+            value: stats.totalLeads.toLocaleString(),
+            change: stats.totalLeads > 0 ? "+" + stats.totalLeads : undefined,
+            changeType: stats.totalLeads > 0 ? "positive" : undefined,
+            href: "/client/leads",
+          },
+          {
+            name: "Recent Leads",
+            value: stats.recentLeads.toString(),
+            change: stats.recentLeads > 0 ? "+" + stats.recentLeads : undefined,
+            changeType: stats.recentLeads > 0 ? "positive" : undefined,
+            href: "/client/leads",
+          },
+        ]}
+      />
 
       {/* Quick Actions */}
       <div className="grid gap-4 sm:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>Common tasks and shortcuts</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Link href="/client/requests/create">
-              <Button variant="outline" className="w-full justify-start">
-                <Plus className="mr-2 h-4 w-4" />
-                Create Agent Request
+        <GlassCard>
+          <GlassCardHeader>
+            <GlassCardTitle>Quick Actions</GlassCardTitle>
+            <GlassCardDescription>Common tasks and shortcuts</GlassCardDescription>
+          </GlassCardHeader>
+          <GlassCardContent className="space-y-2">
+            <Link href="/client/agents">
+              <Button variant="outline" className="w-full justify-start border-white/10 hover:bg-white/5 hover:text-primary">
+                <MessageSquare className="mr-2 h-4 w-4 text-black" />
+                View My Agent
               </Button>
             </Link>
-            <Link href="/client/agents">
-              <Button variant="outline" className="w-full justify-start">
-                <MessageSquare className="mr-2 h-4 w-4" />
-                View All Agents
+            <Link href="/client/requests">
+              <Button variant="outline" className="w-full justify-start border-white/10 hover:bg-white/5 hover:text-primary">
+                <Clock className="mr-2 h-4 w-4 text-black" />
+                View Requests
               </Button>
             </Link>
             <Link href="/client/leads">
-              <Button variant="outline" className="w-full justify-start">
-                <CheckCircle className="mr-2 h-4 w-4" />
+              <Button variant="outline" className="w-full justify-start border-white/10 hover:bg-white/5 hover:text-primary">
+                <CheckCircle className="mr-2 h-4 w-4 text-black" />
                 View Leads
               </Button>
             </Link>
-          </CardContent>
-        </Card>
+          </GlassCardContent>
+        </GlassCard>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Latest updates on your requests</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-sm text-muted-foreground">
-              Check your <Link href="/client/requests" className="text-primary hover:underline">requests page</Link> to see the latest updates.
+        <GlassCard>
+          <GlassCardHeader>
+            <GlassCardTitle>Recent Activity</GlassCardTitle>
+            <GlassCardDescription>Latest updates on your requests</GlassCardDescription>
+          </GlassCardHeader>
+          <GlassCardContent>
+            <div className="text-sm text-muted-foreground p-4 bg-black/20 rounded-lg">
+              Check your <Link href="/client/requests" className="text-primary hover:underline font-semibold">requests page</Link> to see the latest updates.
             </div>
-          </CardContent>
-        </Card>
+          </GlassCardContent>
+        </GlassCard>
       </div>
     </div>
   )

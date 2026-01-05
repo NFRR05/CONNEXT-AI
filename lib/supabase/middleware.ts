@@ -6,6 +6,21 @@ export async function updateSession(request: NextRequest) {
     request,
   })
 
+  // Add security headers
+  supabaseResponse.headers.set('X-Content-Type-Options', 'nosniff')
+  supabaseResponse.headers.set('X-Frame-Options', 'DENY')
+  supabaseResponse.headers.set('X-XSS-Protection', '1; mode=block')
+  supabaseResponse.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  supabaseResponse.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+
+  if (process.env.NODE_ENV === 'production') {
+    supabaseResponse.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+    supabaseResponse.headers.set(
+      'Content-Security-Policy',
+      "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:;"
+    )
+  }
+
   // Check for required environment variables
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -24,13 +39,34 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet: Array<{ name: string; value: string; options?: any }>) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+          const isProduction = process.env.NODE_ENV === 'production'
+
+          cookiesToSet.forEach(({ name, value, options }) => {
+            // Secure cookie options
+            const secureOptions = {
+              ...options,
+              httpOnly: true, // Prevent JavaScript access
+              secure: isProduction, // HTTPS only in production
+              sameSite: 'lax' as const, // CSRF protection
+              path: '/',
+            }
+            request.cookies.set({ name, value, ...secureOptions } as any)
+          })
+
           supabaseResponse = NextResponse.next({
             request,
           })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          )
+
+          cookiesToSet.forEach(({ name, value, options }) => {
+            const secureOptions = {
+              ...options,
+              httpOnly: true,
+              secure: isProduction,
+              sameSite: 'lax' as const,
+              path: '/',
+            }
+            supabaseResponse.cookies.set(name, value, secureOptions as any)
+          })
         },
       },
     }
@@ -44,12 +80,22 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Allow access to auth routes without authentication
-  const isAuthRoute = request.nextUrl.pathname.startsWith('/login') || 
-                      request.nextUrl.pathname.startsWith('/signup') ||
-                      request.nextUrl.pathname.startsWith('/auth')
+  // Allow access to auth routes and landing page without authentication
+  const isAuthRoute = request.nextUrl.pathname === '/' ||
+    request.nextUrl.pathname.startsWith('/login') ||
+    request.nextUrl.pathname.startsWith('/signup') ||
+    request.nextUrl.pathname.startsWith('/auth')
 
-  if (!user && !isAuthRoute) {
+  // Allow Twilio webhooks without authentication (they use Twilio signature verification)
+  const isTwilioWebhook = request.nextUrl.pathname.startsWith('/api/twilio')
+
+  // Allow webhook ingest without authentication (uses api_secret header for auth)
+  const isWebhookIngest = request.nextUrl.pathname.startsWith('/api/webhooks/ingest')
+
+  // Allow Retell webhooks without authentication (uses signature verification)
+  const isRetellWebhook = request.nextUrl.pathname.startsWith('/api/retell/webhook')
+
+  if (!user && !isAuthRoute && !isTwilioWebhook && !isWebhookIngest && !isRetellWebhook) {
     // no user, potentially respond by redirecting the user to the login page
     const url = request.nextUrl.clone()
     url.pathname = '/login'
@@ -64,7 +110,7 @@ export async function updateSession(request: NextRequest) {
       .select('role')
       .eq('id', user.id)
       .single()
-    
+
     const userRole = profile?.role || 'client'
     const url = request.nextUrl.clone()
     url.pathname = userRole === 'admin' || userRole === 'support' ? '/admin/dashboard' : '/client/dashboard'
@@ -78,7 +124,7 @@ export async function updateSession(request: NextRequest) {
       .select('role')
       .eq('id', user.id)
       .single()
-    
+
     const userRole = profile?.role || 'client'
     const pathname = request.nextUrl.pathname
 

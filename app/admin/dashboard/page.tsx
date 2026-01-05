@@ -1,10 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { GlassCard, GlassCardContent, GlassCardDescription, GlassCardHeader, GlassCardTitle } from '@/components/ui/glass-card'
 import { Button } from '@/components/ui/button'
+import { StatsCardsWithLinks, type StatsCardWithLinkData } from '@/components/ui/stats-cards-with-links'
 import { createClient } from '@/lib/supabase/client'
 import { Users, MessageSquare, Clock, CheckCircle, AlertCircle } from 'lucide-react'
+import Link from 'next/link'
 
 interface AdminStats {
   totalClients: number
@@ -97,137 +99,104 @@ export default function AdminDashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Clients</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalClients}</div>
-            <p className="text-xs text-muted-foreground">
-              Active client accounts
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Agents</CardTitle>
-            <MessageSquare className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalAgents}</div>
-            <p className="text-xs text-muted-foreground">
-              All agents across clients
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Requests</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.pendingRequests}</div>
-            <p className="text-xs text-muted-foreground">
-              Awaiting approval
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Leads</CardTitle>
-            <CheckCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalLeads}</div>
-            <p className="text-xs text-muted-foreground">
-              All time leads
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Agents</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.activeAgents}</div>
-            <p className="text-xs text-muted-foreground">
-              Receiving webhooks
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Inactive Agents</CardTitle>
-            <AlertCircle className="h-4 w-4 text-yellow-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.inactiveAgents}</div>
-            <p className="text-xs text-muted-foreground">
-              Needs attention
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      <StatsCardsWithLinks
+        data={[
+          {
+            name: "Total Clients",
+            value: stats.totalClients.toString(),
+            change: stats.totalClients > 0 ? "+" + stats.totalClients : undefined,
+            changeType: stats.totalClients > 0 ? "positive" : undefined,
+            href: "/admin/agents",
+          },
+          {
+            name: "Total Agents",
+            value: stats.totalAgents.toString(),
+            change: stats.totalAgents > 0 ? "+" + stats.totalAgents : undefined,
+            changeType: stats.totalAgents > 0 ? "positive" : undefined,
+            href: "/admin/agents",
+          },
+          {
+            name: "Pending Requests",
+            value: stats.pendingRequests.toString(),
+            change: stats.pendingRequests > 0 ? stats.pendingRequests.toString() : undefined,
+            changeType: stats.pendingRequests > 0 ? "negative" : undefined,
+            href: "/admin/requests",
+          },
+          {
+            name: "Total Leads",
+            value: stats.totalLeads.toLocaleString(),
+            change: stats.totalLeads > 0 ? "+" + stats.totalLeads : undefined,
+            changeType: stats.totalLeads > 0 ? "positive" : undefined,
+            href: "/admin/agents",
+          },
+          {
+            name: "Active Agents",
+            value: stats.activeAgents.toString(),
+            change: stats.activeAgents > 0 ? "+" + stats.activeAgents : undefined,
+            changeType: stats.activeAgents > 0 ? "positive" : undefined,
+            href: "/admin/agents",
+          },
+          {
+            name: "Inactive Agents",
+            value: stats.inactiveAgents.toString(),
+            change: stats.inactiveAgents > 0 ? stats.inactiveAgents.toString() : undefined,
+            changeType: stats.inactiveAgents > 0 ? "negative" : undefined,
+            href: "/admin/agents",
+          },
+        ]}
+      />
 
       {/* Quick Actions */}
       <div className="grid gap-4 sm:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>Common admin tasks</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <a href="/admin/requests">
-              <Button variant="outline" className="w-full justify-start">
-                <Clock className="mr-2 h-4 w-4" />
+        <GlassCard>
+          <GlassCardHeader>
+            <GlassCardTitle>Quick Actions</GlassCardTitle>
+            <GlassCardDescription>Common admin tasks</GlassCardDescription>
+          </GlassCardHeader>
+          <GlassCardContent className="space-y-2">
+            <Link href="/admin/requests">
+              <Button variant="outline" className="w-full justify-start border-white/10 hover:bg-white/5 hover:text-primary">
+                <Clock className="mr-2 h-4 w-4 text-black" />
                 Review Requests
               </Button>
-            </a>
-            <a href="/admin/agents">
-              <Button variant="outline" className="w-full justify-start">
-                <MessageSquare className="mr-2 h-4 w-4" />
+            </Link>
+            <Link href="/admin/agents">
+              <Button variant="outline" className="w-full justify-start border-white/10 hover:bg-white/5 hover:text-primary">
+                <MessageSquare className="mr-2 h-4 w-4 text-black" />
                 Manage Agents
               </Button>
-            </a>
-            <a href="/admin/workflows">
-              <Button variant="outline" className="w-full justify-start">
-                <CheckCircle className="mr-2 h-4 w-4" />
+            </Link>
+            <Link href="/admin/workflows">
+              <Button variant="outline" className="w-full justify-start border-white/10 hover:bg-white/5 hover:text-primary">
+                <CheckCircle className="mr-2 h-4 w-4 text-black" />
                 n8n Workflows
               </Button>
-            </a>
-          </CardContent>
-        </Card>
+            </Link>
+          </GlassCardContent>
+        </GlassCard>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>System Status</CardTitle>
-            <CardDescription>Current system health</CardDescription>
-          </CardHeader>
-          <CardContent>
+        <GlassCard>
+          <GlassCardHeader>
+            <GlassCardTitle>System Status</GlassCardTitle>
+            <GlassCardDescription>Current system health</GlassCardDescription>
+          </GlassCardHeader>
+          <GlassCardContent>
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
+              <div className="flex justify-between p-2 rounded hover:bg-white/5">
                 <span className="text-muted-foreground">n8n Status:</span>
                 <span className="font-medium text-green-500">Online</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between p-2 rounded hover:bg-white/5">
                 <span className="text-muted-foreground">Database:</span>
                 <span className="font-medium text-green-500">Healthy</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between p-2 rounded hover:bg-white/5">
                 <span className="text-muted-foreground">API:</span>
                 <span className="font-medium text-green-500">Operational</span>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </GlassCardContent>
+        </GlassCard>
       </div>
     </div>
   )

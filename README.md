@@ -4,18 +4,22 @@ A Headless CRM and AI Agent Builder that bridges the gap between Voice AI and bu
 
 ## Overview
 
-CONNEXT AI allows non-technical business owners to generate sophisticated Voice AI agents in minutes. Unlike standard tools that just create the bot, CONNEXT AI provides the destination for the data. It generates the agent, automates the logic (via n8n blueprints), and aggregates all call data (leads, summaries, recordings) into a built-in, real-time dashboard.
+CONNEXT AI is a dashboard for Voice AI agents built with n8n. Build your AI agent workflows in n8n (powered by Twilio/Retell/Vapi), and CONNEXT AI receives and displays all your call data (leads, transcripts, recordings) in a beautiful, real-time dashboard.
 
-**Core Philosophy**: "The user owns the Dashboard; we handle the complexity."
+**Architecture**: 
+- **n8n** = Your backend (handles all conversation logic, AI processing)
+- **CONNEXT AI** = Your dashboard (receives data from n8n and displays it)
+
+**Core Philosophy**: "n8n is your backend. CONNEXT AI is your dashboard."
 
 ## Tech Stack
 
 - **Frontend**: Next.js 14 (App Router) with TypeScript
 - **Styling**: Tailwind CSS + ShadcnUI
 - **Database & Auth**: Supabase (PostgreSQL + GoTrue Auth)
-- **Voice Provider**: Vapi.ai
-- **LLM**: OpenAI (GPT-4o)
-- **Orchestration**: n8n (User hosted or cloud)
+- **Backend**: n8n (User hosted or cloud) - handles all AI agent logic
+- **Voice Providers**: Twilio, Retell, Vapi (configured in n8n)
+- **LLM**: OpenAI, Anthropic, etc. (configured in n8n)
 
 ## Getting Started
 

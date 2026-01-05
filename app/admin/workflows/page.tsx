@@ -1,12 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { GlassCard, GlassCardContent, GlassCardDescription, GlassCardHeader, GlassCardTitle } from '@/components/ui/glass-card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { createClient } from '@/lib/supabase/client'
-import { Workflow, CheckCircle, XCircle, RefreshCw, Download, FileJson } from 'lucide-react'
+import { Workflow, CheckCircle, XCircle, RefreshCw, Eye } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import Link from 'next/link'
 
 interface Agent {
   id: string
@@ -25,7 +26,6 @@ export default function AdminWorkflowsPage() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState<string | null>(null)
-  const [downloading, setDownloading] = useState<string | null>(null)
   const { toast } = useToast()
 
   const fetchAgents = async () => {
@@ -48,7 +48,7 @@ export default function AdminWorkflowsPage() {
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      setAgents(data || [])
+      setAgents((data || []) as any)
     } catch (error) {
       console.error('Error fetching agents:', error)
       toast({
@@ -86,40 +86,6 @@ export default function AdminWorkflowsPage() {
     }
   }
 
-  const downloadBlueprint = async (agentId: string, agentName: string) => {
-    setDownloading(agentId)
-    try {
-      const response = await fetch(`/api/admin/agents/${agentId}/blueprint`)
-      
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to generate blueprint')
-      }
-
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `connext-ai-${agentName.replace(/\s+/g, '-').toLowerCase()}.json`
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
-
-      toast({
-        title: 'Blueprint downloaded',
-        description: 'Workflow JSON has been downloaded successfully',
-      })
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to download blueprint',
-        variant: 'destructive',
-      })
-    } finally {
-      setDownloading(null)
-    }
-  }
 
   const agentsWithWorkflows = agents.filter(a => a.n8n_workflow_id)
   const agentsWithoutWorkflows = agents.filter(a => !a.n8n_workflow_id)
@@ -131,9 +97,9 @@ export default function AdminWorkflowsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold">n8n Workflows</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold">Agents & Workflows</h1>
         <p className="text-muted-foreground mt-1 text-sm sm:text-base">
-          Manage n8n workflows for all agents
+          Manage all agents and their n8n workflows
         </p>
       </div>
 
@@ -143,22 +109,22 @@ export default function AdminWorkflowsPage() {
           <h2 className="text-xl font-semibold">Active Workflows ({agentsWithWorkflows.length})</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {agentsWithWorkflows.map((agent) => (
-              <Card key={agent.id}>
-                <CardHeader>
+              <GlassCard key={agent.id}>
+                <GlassCardHeader>
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
                     <div className="space-y-1 flex-1 min-w-0">
-                      <CardTitle className="break-words">{agent.name}</CardTitle>
-                      <CardDescription className="text-xs sm:text-sm break-words">
+                      <GlassCardTitle className="break-words">{agent.name}</GlassCardTitle>
+                      <GlassCardDescription className="text-xs sm:text-sm break-words">
                         {agent.profiles?.email || 'Unknown user'}
-                      </CardDescription>
+                      </GlassCardDescription>
                     </div>
                     <Badge variant="default" className="w-fit">
                       <CheckCircle className="mr-1 h-3 w-3" />
                       Active
                     </Badge>
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
+                </GlassCardHeader>
+                <GlassCardContent className="space-y-3">
                   <div className="space-y-2 text-sm">
                     <div className="flex flex-wrap items-center gap-2">
                       <Workflow className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -170,29 +136,20 @@ export default function AdminWorkflowsPage() {
                     </div>
                   </div>
                   <div className="flex flex-col gap-2">
+                    <Link href={`/admin/agents/${agent.id}`}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full border-white/10 hover:bg-white/5 hover:text-primary"
+                      >
+                        <Eye className="mr-2 h-4 w-4" />
+                        View Details
+                      </Button>
+                    </Link>
                     <Button
                       variant="outline"
                       size="sm"
-                      className="w-full"
-                      onClick={() => downloadBlueprint(agent.id, agent.name)}
-                      disabled={downloading === agent.id}
-                    >
-                      {downloading === agent.id ? (
-                        <>
-                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                          Generating...
-                        </>
-                      ) : (
-                        <>
-                          <Download className="mr-2 h-4 w-4" />
-                          Download JSON
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
+                      className="w-full border-white/10 hover:bg-white/5 hover:text-primary"
                       onClick={() => agent.n8n_workflow_id && syncWorkflow(agent.id, agent.n8n_workflow_id)}
                       disabled={syncing === agent.id}
                     >
@@ -209,8 +166,8 @@ export default function AdminWorkflowsPage() {
                       )}
                     </Button>
                   </div>
-                </CardContent>
-              </Card>
+                </GlassCardContent>
+              </GlassCard>
             ))}
           </div>
         </div>
@@ -222,63 +179,43 @@ export default function AdminWorkflowsPage() {
           <h2 className="text-xl font-semibold">Agents Without Workflows ({agentsWithoutWorkflows.length})</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {agentsWithoutWorkflows.map((agent) => (
-              <Card key={agent.id}>
-                <CardHeader>
+              <GlassCard key={agent.id}>
+                <GlassCardHeader>
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
                     <div className="space-y-1 flex-1 min-w-0">
-                      <CardTitle className="break-words">{agent.name}</CardTitle>
-                      <CardDescription className="text-xs sm:text-sm break-words">
+                      <GlassCardTitle className="break-words">{agent.name}</GlassCardTitle>
+                      <GlassCardDescription className="text-xs sm:text-sm break-words">
                         {agent.profiles?.email || 'Unknown user'}
-                      </CardDescription>
+                      </GlassCardDescription>
                     </div>
                     <Badge variant="outline" className="w-fit">
                       <XCircle className="mr-1 h-3 w-3" />
                       No Workflow
                     </Badge>
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
+                </GlassCardHeader>
+                <GlassCardContent className="space-y-3">
                   <p className="text-sm text-muted-foreground break-words">
                     This agent doesn&apos;t have an n8n workflow. Workflows are automatically created when you approve agent creation requests.
                   </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                    onClick={() => downloadBlueprint(agent.id, agent.name)}
-                    disabled={downloading === agent.id}
-                  >
-                    {downloading === agent.id ? (
-                      <>
-                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <FileJson className="mr-2 h-4 w-4" />
-                        Generate & Download JSON
-                      </>
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
+                </GlassCardContent>
+              </GlassCard>
             ))}
           </div>
         </div>
       )}
 
       {agents.length === 0 && (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
+        <GlassCard>
+          <GlassCardContent className="flex flex-col items-center justify-center py-12">
             <Workflow className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">No workflows yet</h3>
             <p className="text-muted-foreground text-center">
               Workflows will appear here once agents are created and approved
             </p>
-          </CardContent>
-        </Card>
+          </GlassCardContent>
+        </GlassCard>
       )}
     </div>
   )
 }
-

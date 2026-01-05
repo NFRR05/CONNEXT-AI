@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { rateLimiters } from '@/lib/rate-limit-supabase'
 import { agentRequestSchema, validateInput } from '@/lib/validation'
+import { createErrorResponse, logError } from '@/lib/security/error-handler'
+import { sanitizeText } from '@/lib/security/sanitization'
 
 // GET: Fetch agent requests (users see their own, admins see all)
 export async function GET(request: NextRequest) {
@@ -51,19 +53,21 @@ export async function GET(request: NextRequest) {
     const { data: requests, error: requestsError } = await query
 
     if (requestsError) {
-      console.error('Error fetching agent requests:', requestsError)
-      return NextResponse.json(
-        { error: 'Failed to fetch requests' },
-        { status: 500 }
+      logError('Agent Requests GET', requestsError)
+      return createErrorResponse(
+        requestsError,
+        'Failed to fetch requests',
+        500
       )
     }
 
     return NextResponse.json({ requests: requests || [] }, { status: 200 })
   } catch (error) {
-    console.error('Error fetching agent requests:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+    logError('Agent Requests GET', error)
+    return createErrorResponse(
+      error,
+      'Internal server error',
+      500
     )
   }
 }
@@ -121,6 +125,29 @@ export async function POST(request: NextRequest) {
 
     const requestData = validation.data
 
+    // Prevent clients from creating new agents (only update/delete allowed)
+    if (requestData.request_type === 'create') {
+      // Check user role
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+
+      const userRole = profile?.role || 'client'
+      
+      // Only admins can create agents directly
+      if (userRole !== 'admin' && userRole !== 'support') {
+        return NextResponse.json(
+          { 
+            error: 'Clients cannot create new agents. You can only request updates or deletions to your existing agent.',
+            hint: 'If you need a new agent, contact support.'
+          },
+          { status: 403 }
+        )
+      }
+    }
+
     // For update/delete requests, verify agent belongs to user
     if ((requestData.request_type === 'update' || requestData.request_type === 'delete') && requestData.agent_id) {
       const { data: agent, error: agentError } = await supabase
@@ -138,6 +165,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Sanitize input before storage
+    const sanitizedName = requestData.name ? sanitizeText(requestData.name) : null
+    const sanitizedDescription = requestData.description ? sanitizeText(requestData.description) : null
+    const sanitizedSystemPrompt = requestData.system_prompt ? sanitizeText(requestData.system_prompt) : null
+
     // Create request
     const { data: newRequest, error: createError } = await supabase
       .from('agent_requests')
@@ -146,9 +178,9 @@ export async function POST(request: NextRequest) {
         agent_id: requestData.agent_id || null,
         request_type: requestData.request_type,
         status: 'pending',
-        name: requestData.name || null,
-        description: requestData.description || null,
-        system_prompt: requestData.system_prompt || null,
+        name: sanitizedName,
+        description: sanitizedDescription,
+        system_prompt: sanitizedSystemPrompt,
         voice_id: requestData.voice_id || null,
         form_data: requestData.form_data || {},
         workflow_config: requestData.workflow_config || {},
@@ -157,10 +189,11 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (createError) {
-      console.error('Error creating agent request:', createError)
-      return NextResponse.json(
-        { error: 'Failed to create request' },
-        { status: 500 }
+      logError('Agent Requests POST', createError)
+      return createErrorResponse(
+        createError,
+        'Failed to create request',
+        500
       )
     }
 
@@ -172,10 +205,11 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     )
   } catch (error) {
-    console.error('Error creating agent request:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+    logError('Agent Requests POST', error)
+    return createErrorResponse(
+      error,
+      'Internal server error',
+      500
     )
   }
 }

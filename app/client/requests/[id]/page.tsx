@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { GlassCard, GlassCardContent, GlassCardDescription, GlassCardHeader, GlassCardTitle } from '@/components/ui/glass-card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { createClient } from '@/lib/supabase/client'
@@ -37,7 +37,7 @@ export default function RequestDetailPage() {
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      
+
       if (!user) return
 
       const { data, error } = await supabase
@@ -66,11 +66,12 @@ export default function RequestDetailPage() {
     if (params.id) {
       fetchRequest(params.id as string)
     }
-  }, [params.id, fetchRequest])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.id])
 
   const handleCancel = async () => {
     if (!request) return
-    
+
     if (!confirm('Are you sure you want to cancel this request? This action cannot be undone.')) {
       return
     }
@@ -117,7 +118,7 @@ export default function RequestDetailPage() {
       completed: 'default',
       cancelled: 'outline',
     }
-    
+
     const icons = {
       pending: Clock,
       approved: CheckCircle,
@@ -152,8 +153,8 @@ export default function RequestDetailPage() {
   if (!request) {
     return (
       <div className="p-8">
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
+        <GlassCard>
+          <GlassCardContent className="flex flex-col items-center justify-center py-12">
             <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">Request not found</h3>
             <p className="text-muted-foreground mb-4 text-center">
@@ -162,8 +163,8 @@ export default function RequestDetailPage() {
             <Link href="/client/requests">
               <Button>Back to Requests</Button>
             </Link>
-          </CardContent>
-        </Card>
+          </GlassCardContent>
+        </GlassCard>
       </div>
     )
   }
@@ -190,6 +191,7 @@ export default function RequestDetailPage() {
             variant="outline"
             onClick={handleCancel}
             disabled={cancelling}
+            className="border-white/10 hover:bg-white/5 hover:text-destructive"
           >
             {cancelling ? 'Cancelling...' : 'Cancel Request'}
           </Button>
@@ -198,11 +200,11 @@ export default function RequestDetailPage() {
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Basic Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Basic Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <GlassCard>
+          <GlassCardHeader>
+            <GlassCardTitle>Basic Information</GlassCardTitle>
+          </GlassCardHeader>
+          <GlassCardContent className="space-y-4">
             <div className="space-y-1">
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Request Type</span>
               <p className="text-base font-medium">{getRequestTypeLabel(request.request_type)}</p>
@@ -215,7 +217,7 @@ export default function RequestDetailPage() {
               </div>
             </div>
 
-            <div className="space-y-1 pt-2 border-t">
+            <div className="space-y-1 pt-2 border-t border-white/5">
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Created</span>
               <p className="text-sm">{new Date(request.created_at).toLocaleString()}</p>
             </div>
@@ -224,30 +226,30 @@ export default function RequestDetailPage() {
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Last Updated</span>
               <p className="text-sm">{new Date(request.updated_at).toLocaleString()}</p>
             </div>
-          </CardContent>
-        </Card>
+          </GlassCardContent>
+        </GlassCard>
 
         {/* Description */}
         {request.description && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Description</CardTitle>
-            </CardHeader>
-            <CardContent>
+          <GlassCard>
+            <GlassCardHeader>
+              <GlassCardTitle>Description</GlassCardTitle>
+            </GlassCardHeader>
+            <GlassCardContent>
               <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{request.description}</p>
-            </CardContent>
-          </Card>
+            </GlassCardContent>
+          </GlassCard>
         )}
       </div>
 
       {/* Form Data */}
       {request.form_data && Object.keys(request.form_data).length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Form Data</CardTitle>
-            <CardDescription>Information collected from the creation form</CardDescription>
-          </CardHeader>
-          <CardContent>
+        <GlassCard>
+          <GlassCardHeader>
+            <GlassCardTitle>Form Data</GlassCardTitle>
+            <GlassCardDescription>Information collected from the creation form</GlassCardDescription>
+          </GlassCardHeader>
+          <GlassCardContent>
             <div className="space-y-4">
               {request.form_data.businessType && (
                 <div>
@@ -331,35 +333,35 @@ export default function RequestDetailPage() {
               )}
 
               {/* Show raw JSON for any other fields */}
-              {Object.keys(request.form_data).some(key => 
+              {Object.keys(request.form_data).some(key =>
                 !['businessType', 'agentPurpose', 'informationToCollect', 'tone', 'businessName', 'agentName', 'additionalInfo'].includes(key)
               ) && (
-                <div className="pt-4 border-t">
-                  <details className="group">
-                    <summary className="text-xs font-medium text-muted-foreground uppercase tracking-wide cursor-pointer hover:text-foreground">
-                      Raw Form Data
-                    </summary>
-                    <div className="mt-2 p-4 bg-muted rounded-lg max-h-64 overflow-auto">
-                      <pre className="text-xs font-mono whitespace-pre-wrap break-words">
-                        {JSON.stringify(request.form_data, null, 2)}
-                      </pre>
-                    </div>
-                  </details>
-                </div>
-              )}
+                  <div className="pt-4 border-t border-white/5">
+                    <details className="group">
+                      <summary className="text-xs font-medium text-muted-foreground uppercase tracking-wide cursor-pointer hover:text-foreground">
+                        Raw Form Data
+                      </summary>
+                      <div className="mt-2 p-4 bg-muted/20 backdrop-blur-sm rounded-lg max-h-64 overflow-auto border border-white/5">
+                        <pre className="text-xs font-mono whitespace-pre-wrap break-words">
+                          {JSON.stringify(request.form_data, null, 2)}
+                        </pre>
+                      </div>
+                    </details>
+                  </div>
+                )}
             </div>
-          </CardContent>
-        </Card>
+          </GlassCardContent>
+        </GlassCard>
       )}
 
       {/* Workflow Configuration */}
       {request.workflow_config && Object.keys(request.workflow_config).length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Workflow Configuration</CardTitle>
-            <CardDescription>n8n workflow settings and preferences</CardDescription>
-          </CardHeader>
-          <CardContent>
+        <GlassCard>
+          <GlassCardHeader>
+            <GlassCardTitle>Workflow Configuration</GlassCardTitle>
+            <GlassCardDescription>n8n workflow settings and preferences</GlassCardDescription>
+          </GlassCardHeader>
+          <GlassCardContent>
             <div className="space-y-4">
               {/* Data Validation */}
               {(request.workflow_config.validatePhone || request.workflow_config.validateEmail || request.workflow_config.filterTestCalls || request.workflow_config.minCallDuration) && (
@@ -458,44 +460,43 @@ export default function RequestDetailPage() {
               )}
 
               {/* Show raw JSON for any other fields */}
-              {Object.keys(request.workflow_config).some(key => 
+              {Object.keys(request.workflow_config).some(key =>
                 !['validatePhone', 'validateEmail', 'filterTestCalls', 'minCallDuration', 'retryOnFailure', 'maxRetries', 'errorNotifications', 'formatPhoneNumbers', 'extractStructuredData', 'routeBySentiment', 'sentimentThreshold', 'routeByDuration', 'durationThreshold'].includes(key)
               ) && (
-                <div className="pt-4 border-t">
-                  <details className="group">
-                    <summary className="text-xs font-medium text-muted-foreground uppercase tracking-wide cursor-pointer hover:text-foreground">
-                      Raw Configuration
-                    </summary>
-                    <div className="mt-2 p-4 bg-muted rounded-lg max-h-64 overflow-auto">
-                      <pre className="text-xs font-mono whitespace-pre-wrap break-words">
-                        {JSON.stringify(request.workflow_config, null, 2)}
-                      </pre>
-                    </div>
-                  </details>
-                </div>
-              )}
+                  <div className="pt-4 border-t border-white/5">
+                    <details className="group">
+                      <summary className="text-xs font-medium text-muted-foreground uppercase tracking-wide cursor-pointer hover:text-foreground">
+                        Raw Configuration
+                      </summary>
+                      <div className="mt-2 p-4 bg-muted/20 backdrop-blur-sm rounded-lg max-h-64 overflow-auto border border-white/5">
+                        <pre className="text-xs font-mono whitespace-pre-wrap break-words">
+                          {JSON.stringify(request.workflow_config, null, 2)}
+                        </pre>
+                      </div>
+                    </details>
+                  </div>
+                )}
             </div>
-          </CardContent>
-        </Card>
+          </GlassCardContent>
+        </GlassCard>
       )}
 
       {request.admin_notes && (
-        <Card className="border-l-4 border-l-primary">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+        <GlassCard className="border-l-4 border-l-primary">
+          <GlassCardHeader>
+            <GlassCardTitle className="flex items-center gap-2">
               <MessageSquare className="h-5 w-5" />
               Admin Notes
-            </CardTitle>
-            <CardDescription>Feedback and notes from the admin team</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="p-4 bg-muted rounded-lg">
+            </GlassCardTitle>
+            <GlassCardDescription>Feedback and notes from the admin team</GlassCardDescription>
+          </GlassCardHeader>
+          <GlassCardContent>
+            <div className="p-4 bg-muted/20 backdrop-blur-sm rounded-lg border border-white/5">
               <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{request.admin_notes}</p>
             </div>
-          </CardContent>
-        </Card>
+          </GlassCardContent>
+        </GlassCard>
       )}
     </div>
   )
 }
-

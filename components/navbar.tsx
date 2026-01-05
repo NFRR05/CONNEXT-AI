@@ -50,7 +50,6 @@ export function Navbar() {
     { href: '/admin/dashboard', label: 'Dashboard' },
     { href: '/admin/requests', label: 'Requests' },
     { href: '/admin/agents', label: 'Agents' },
-    { href: '/admin/workflows', label: 'Workflows' },
   ]
 
   const navLinks = userRole === 'admin' || userRole === 'support' ? adminLinks : clientLinks

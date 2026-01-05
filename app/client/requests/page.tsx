@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { GlassCard, GlassCardContent, GlassCardDescription, GlassCardHeader, GlassCardTitle } from '@/components/ui/glass-card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { createClient } from '@/lib/supabase/client'
@@ -27,13 +27,14 @@ export default function ClientRequestsPage() {
 
   useEffect(() => {
     fetchRequests()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const fetchRequests = async () => {
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      
+
       if (!user) return
 
       const { data, error } = await supabase
@@ -59,7 +60,7 @@ export default function ClientRequestsPage() {
       completed: 'default',
       cancelled: 'outline',
     }
-    
+
     const icons = {
       pending: Clock,
       approved: CheckCircle,
@@ -101,7 +102,7 @@ export default function ClientRequestsPage() {
           </p>
         </div>
         <Link href="/client/requests/create" className="w-full sm:w-auto">
-          <Button className="w-full sm:w-auto">
+          <Button className="w-full sm:w-auto shadow-lg shadow-primary/20">
             <Plus className="mr-2 h-4 w-4" />
             New Request
           </Button>
@@ -109,8 +110,8 @@ export default function ClientRequestsPage() {
       </div>
 
       {requests.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
+        <GlassCard>
+          <GlassCardContent className="flex flex-col items-center justify-center py-12">
             <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">No requests yet</h3>
             <p className="text-muted-foreground mb-4 text-center">
@@ -119,51 +120,50 @@ export default function ClientRequestsPage() {
             <Link href="/client/requests/create">
               <Button>Create Request</Button>
             </Link>
-          </CardContent>
-        </Card>
+          </GlassCardContent>
+        </GlassCard>
       ) : (
         <div className="space-y-4">
           {requests.map((request) => (
-            <Card key={request.id}>
-              <CardHeader>
+            <GlassCard key={request.id}>
+              <GlassCardHeader>
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                   <div className="space-y-2 flex-1 min-w-0">
-                    <CardTitle className="break-words">{request.name || getRequestTypeLabel(request.request_type)}</CardTitle>
+                    <GlassCardTitle className="break-words">{request.name || getRequestTypeLabel(request.request_type)}</GlassCardTitle>
                     <div className="flex items-center gap-2 flex-wrap">
                       {getStatusBadge(request.status)}
-                      <CardDescription className="text-xs sm:text-sm">
+                      <GlassCardDescription className="text-xs sm:text-sm">
                         {getRequestTypeLabel(request.request_type)} • {new Date(request.created_at).toLocaleDateString()}
-                      </CardDescription>
+                      </GlassCardDescription>
                     </div>
                   </div>
                   <Link href={`/client/requests/${request.id}`} className="w-full sm:w-auto">
-                    <Button variant="outline" size="sm" className="w-full sm:w-auto">
+                    <Button variant="outline" size="sm" className="w-full sm:w-auto border-white/10 hover:bg-white/5 hover:text-primary">
                       <Eye className="mr-2 h-4 w-4" />
                       View
                     </Button>
                   </Link>
                 </div>
-              </CardHeader>
+              </GlassCardHeader>
               {request.description && (
-                <CardContent>
+                <GlassCardContent>
                   <p className="text-sm text-muted-foreground line-clamp-2">
                     {request.description}
                   </p>
-                </CardContent>
+                </GlassCardContent>
               )}
               {request.admin_notes && request.status !== 'pending' && (
-                <CardContent className="pt-0">
-                  <div className="rounded-lg bg-muted p-3">
+                <GlassCardContent className="pt-0">
+                  <div className="rounded-lg bg-muted/20 backdrop-blur-sm p-3 border border-white/5">
                     <p className="text-sm font-medium mb-1">Admin Notes:</p>
                     <p className="text-sm text-muted-foreground">{request.admin_notes}</p>
                   </div>
-                </CardContent>
+                </GlassCardContent>
               )}
-            </Card>
+            </GlassCard>
           ))}
         </div>
       )}
     </div>
   )
 }
-

@@ -284,7 +284,6 @@ export default function CreateAgentPage() {
         body: JSON.stringify({
           description,
           name: formData.agentName || undefined,
-          voice_id: formData.voice_id || undefined,
           formData: {
             businessType: formData.businessType,
             agentPurpose: formData.agentPurpose,

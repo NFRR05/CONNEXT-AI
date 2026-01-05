@@ -1,0 +1,166 @@
+{
+  "name": "CONNEXT AI - Restaurant Booking Agent (Italian/English)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "twilio-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "name": "Twilio Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "twilio-call-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate and clean phone number\nconst input = $input.item.json;\nconst phone = input.from || input.phone || input.customerPhone || '';\n\nif (!phone) {\n  throw new Error('Phone number is required');\n}\n\n// Remove all non-digits\nconst cleaned = phone.replace(/\\D/g, '');\n\n// Validate length (minimum 10 digits)\nif (cleaned.length < 10) {\n  throw new Error('Invalid phone number format');\n}\n\n// Format to international (assume US if 10 digits)\nlet formatted = cleaned;\nif (cleaned.length === 10) {\n  formatted = '+1' + cleaned;\n} else if (cleaned.length === 11 && cleaned.startsWith('1')) {\n  formatted = '+' + cleaned;\n} else if (!cleaned.startsWith('+')) {\n  formatted = '+' + cleaned;\n}\n\nreturn {\n  ...input,\n  phone: formatted,\n  originalPhone: phone,\n  validated: true\n};"
+      },
+      "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+      "name": "Validate Phone",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract structured data from transcript\nconst input = $input.item.json;\nconst transcript = input.transcript || input.callTranscript || '';\nconst summary = input.summary || input.callSummary || '';\n\n// Detect language (Italian or English)\nconst italianWords = ['ciao', 'buongiorno', 'buonasera', 'prenotazione', 'tavolo', 'ristorante', 'per favore', 'grazie', 'prego', 'quando', 'dove', 'quanto', 'nome', 'telefono', 'email', 'persone', 'ospiti'];\nconst englishWords = ['hello', 'hi', 'reservation', 'table', 'restaurant', 'please', 'thank', 'when', 'where', 'how much', 'name', 'phone', 'people', 'guests'];\n\nlet detectedLanguage = 'unknown';\nconst transcriptLower = (transcript + ' ' + summary).toLowerCase();\n\nlet italianCount = 0;\nlet englishCount = 0;\n\nitalianWords.forEach(word => {\n  if (transcriptLower.includes(word)) italianCount++;\n});\n\nenglishWords.forEach(word => {\n  if (transcriptLower.includes(word)) englishCount++;\n});\n\nif (italianCount > englishCount && italianCount > 0) {\n  detectedLanguage = 'italian';\n} else if (englishCount > italianCount && englishCount > 0) {\n  detectedLanguage = 'english';\n} else if (italianCount > 0 && englishCount > 0) {\n  detectedLanguage = 'bilingual';\n}\n\nconst structured = {\n  customerName: null,\n  reservationDate: null,\n  reservationTime: null,\n  partySize: null,\n  specialRequests: null,\n  email: null,\n  detectedLanguage: detectedLanguage\n};\n\n// Extract name patterns (Italian and English)\nconst namePatterns = [\n  // English patterns\n  /(?:my name is|i'm|i am|this is|it's)\\s+([A-Z][a-z]+(?:\\s+[A-Z][a-z]+)?)/gi,\n  /name\\s+(?:is\\s+)?([A-Z][a-z]+(?:\\s+[A-Z][a-z]+)?)/gi,\n  // Italian patterns\n  /(?:mi chiamo|sono|il mio nome è|io sono)\\s+([A-ZÀÁÂÃÄÈÉÊËÌÍÎÏÒÓÔÕÖÙÚÛÜ][a-zàáâãäèéêëìíîïòóôõöùúûü]+(?:\\s+[A-ZÀÁÂÃÄÈÉÊËÌÍÎÏÒÓÔÕÖÙÚÛÜ][a-zàáâãäèéêëìíîïòóôõöùúûü]+)?)/gi,\n  /nome\\s+(?:è\\s+)?([A-ZÀÁÂÃÄÈÉÊËÌÍÎÏÒÓÔÕÖÙÚÛÜ][a-zàáâãäèéêëìíîïòóôõöùúûü]+(?:\\s+[A-ZÀÁÂÃÄÈÉÊËÌÍÎÏÒÓÔÕÖÙÚÛÜ][a-zàáâãäèéêëìíîïòóôõöùúûü]+)?)/gi\n];\n\nfor (const pattern of namePatterns) {\n  const match = pattern.exec(transcript + ' ' + summary);\n  if (match && match[1]) {\n    structured.customerName = match[1].trim();\n    break;\n  }\n}\n\n// Extract date patterns (Italian and English)\nconst datePatterns = [\n  // English patterns\n  /(?:on|for|book|reserve|reservation)\\s+(?:the\\s+)?(\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})/gi,\n  /(?:on|for|for the)\\s+((?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))/gi,\n  /(?:on|for)\\s+((?:january|february|march|april|may|june|july|august|september|october|november|december)\\s+\\d{1,2})/gi,\n  // Italian patterns\n  /(?:per|il|per il|prenotare|prenotazione)\\s+(?:il\\s+)?(\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{2,4})/gi,\n  /(?:per|il|per il)\\s+((?:lunedì|martedì|mercoledì|giovedì|venerdì|sabato|domenica))/gi,\n  /(?:per|il)\\s+((?:gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\\s+\\d{1,2})/gi\n];\n\nfor (const pattern of datePatterns) {\n  const match = pattern.exec(transcript + ' ' + summary);\n  if (match && match[1]) {\n    structured.reservationDate = match[1].trim();\n    break;\n  }\n}\n\n// Extract time patterns\nconst timePatterns = [\n  /(?:at|for|around)\\s+(\\d{1,2}:?\\d{0,2}\\s*(?:am|pm|AM|PM)?)/gi,\n  /(\\d{1,2}:\\d{2}\\s*(?:am|pm|AM|PM)?)/gi\n];\n\nfor (const pattern of timePatterns) {\n  const match = pattern.exec(transcript + ' ' + summary);\n  if (match && match[1]) {\n    structured.reservationTime = match[1].trim();\n    break;\n  }\n}\n\n// Extract party size (Italian and English)\nconst partyPattern = /(?:party|table|people|guests|persons?|persone|tavolo|ospiti)\\s+(?:of|for|size|di|per)?\\s*(\\d+)/gi;\nconst partyMatch = partyPattern.exec(transcript + ' ' + summary);\nif (partyMatch && partyMatch[1]) {\n  structured.partySize = parseInt(partyMatch[1]);\n}\n\n// Extract email\nconst emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/g;\nconst emailMatch = emailPattern.exec(transcript + ' ' + summary);\nif (emailMatch) {\n  structured.email = emailMatch[0];\n}\n\n// Extract special requests (look for keywords)\nconst requestKeywords = ['vegetarian', 'vegan', 'allergy', 'wheelchair', 'outdoor', 'window', 'quiet', 'anniversary', 'birthday'];\nconst foundRequests = [];\nfor (const keyword of requestKeywords) {\n  const regex = new RegExp(keyword, 'gi');\n  if (regex.test(transcript + ' ' + summary)) {\n    foundRequests.push(keyword);\n  }\n}\nif (foundRequests.length > 0) {\n  structured.specialRequests = foundRequests.join(', ');\n}\n\nreturn {\n  ...input,\n  structured_data: {\n    ...(input.structuredData || {}),\n    restaurant: structured\n  }\n};"
+      },
+      "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+      "name": "Extract Restaurant Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [750, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://waspier-waffly-felipa.ngrok-free.dev/api/webhooks/ingest",
+        "authentication": "none",
+        "sendBody": true,
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonParameters": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-agent-secret",
+              "value": "28e4f088ec9c4c"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "phone",
+              "value": "={{ $json.phone || $json.from || $json.customerPhone }}"
+            },
+            {
+              "name": "summary",
+              "value": "={{ $json.summary || $json.callSummary || 'Call received' }}"
+            },
+            {
+              "name": "recording",
+              "value": "={{ $json.recordingUrl || $json.recording || $json.recording_url || '' }}"
+            },
+            {
+              "name": "transcript",
+              "value": "={{ $json.transcript || $json.callTranscript || $json.call_transcript || '' }}"
+            },
+            {
+              "name": "sentiment",
+              "value": "={{ $json.sentiment || 'neutral' }}"
+            },
+            {
+              "name": "structured_data",
+              "value": "={{ $json.structured_data || $json.structuredData || {} }}"
+            },
+            {
+              "name": "duration",
+              "value": "={{ $json.duration || $json.callDuration || 0 }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d4e5f6a7-b8c9-0123-def0-234567890123",
+      "name": "CONNEXT AI Ingest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"success\", \"message\": \"Lead received\" } }}",
+        "options": {}
+      },
+      "id": "e5f6a7b8-c9d0-1234-ef01-345678901234",
+      "name": "Respond to Twilio",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    }
+  ],
+  "connections": {
+    "Twilio Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Phone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Phone": {
+      "main": [
+        [
+          {
+            "node": "Extract Restaurant Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Restaurant Data": {
+      "main": [
+        [
+          {
+            "node": "CONNEXT AI Ingest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CONNEXT AI Ingest": {
+      "main": [
+        [
+          {
+            "node": "Respond to Twilio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "pinData": {},
+  "versionId": "1"
+}
+

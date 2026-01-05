@@ -20,6 +20,9 @@ CREATE TABLE IF NOT EXISTS agents (
   name TEXT NOT NULL,
   vapi_assistant_id TEXT,
   vapi_phone_number_id TEXT,
+  retell_agent_id TEXT,
+  retell_phone_number_id TEXT,
+  provider_type TEXT DEFAULT 'retell' CHECK (provider_type IN ('vapi', 'retell', 'twilio')),
   api_secret TEXT UNIQUE NOT NULL,
   system_prompt TEXT,
   voice_id TEXT,
@@ -43,11 +46,18 @@ CREATE TABLE IF NOT EXISTS leads (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
+-- Note: retell_call_sessions and twilio_call_sessions tables have been removed
+-- as part of the migration to n8n-first architecture. n8n now handles all
+-- call processing and sends final data to CONNEXT AI via /api/webhooks/ingest
+
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_agents_user_id ON agents(user_id);
+CREATE INDEX IF NOT EXISTS idx_agents_provider_type ON agents(provider_type);
+CREATE INDEX IF NOT EXISTS idx_agents_retell_agent_id ON agents(retell_agent_id);
 CREATE INDEX IF NOT EXISTS idx_leads_agent_id ON leads(agent_id);
 CREATE INDEX IF NOT EXISTS idx_leads_created_at ON leads(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_agents_api_secret ON agents(api_secret);
+-- Removed indexes for retell_call_sessions (table removed in migration 014)
 
 -- Enable Row Level Security
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
@@ -142,4 +152,6 @@ CREATE TRIGGER update_agents_updated_at
 CREATE TRIGGER update_leads_updated_at
   BEFORE UPDATE ON leads
   FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+-- Removed retell_call_sessions table, triggers, and RLS policies (migration 014)
 

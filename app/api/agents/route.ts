@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createServiceClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
+import { createErrorResponse, logError } from '@/lib/security/error-handler'
+import { sanitizeText, normalizePhone } from '@/lib/security/sanitization'
 
 export async function GET(request: NextRequest) {
   try {
@@ -52,33 +55,141 @@ export async function POST(request: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError) {
-      console.error('[Agent Creation] Auth error:', {
-        error: authError,
-        message: authError.message,
-        status: authError.status,
-      })
-      return NextResponse.json(
-        { error: 'Unauthorized', details: authError.message },
-        { status: 401 }
+      logError('Agent Creation', authError)
+      return createErrorResponse(
+        authError,
+        'Unauthorized',
+        401
       )
     }
     
     if (!user) {
-      console.error('[Agent Creation] No user found after auth check')
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
+      logError('Agent Creation', new Error('No user found after auth check'))
+      return createErrorResponse(
+        new Error('Unauthorized'),
+        'Unauthorized',
+        401
       )
     }
     
+    // Log without PII
     console.log('[Agent Creation] User authenticated:', {
       userId: user.id,
-      email: user.email,
+      // email: user.email, // ❌ REMOVED - PII
     })
 
-    // Rate limiting (per user)
+    // Check if current user is admin
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+    
+    const isAdmin = profile?.role === 'admin' || profile?.role === 'support'
+    
+    console.log('[Agent Creation] Step 2.5: Parsing request body for target user...')
+    let body
+    try {
+      body = await request.json()
+      console.log('[Agent Creation] Request body received:', {
+        hasDescription: !!body.description,
+        descriptionLength: body.description?.length || 0,
+        hasName: !!body.name,
+        name: body.name,
+        hasUserEmail: !!body.user_email,
+        hasUserId: !!body.user_id,
+        isAdmin: isAdmin,
+      })
+    } catch (parseError) {
+      console.error('[Agent Creation] Failed to parse request body:', parseError)
+      return NextResponse.json(
+        { error: 'Invalid request body. Expected JSON.' },
+        { status: 400 }
+      )
+    }
+
+    // Determine target user
+    let targetUserId = user.id // Default to current user
+    let targetUserEmail = body.user_email // Optional: email for admin to create agent for another user
+
+    // If admin specified user_email, find that user
+    if (isAdmin && targetUserEmail) {
+      // Use service role client to query auth.users
+      const serviceClient = createServiceClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      )
+
+      try {
+        // Use Supabase Admin API to get user by email
+        const { data: adminUsers, error: adminError } = await serviceClient.auth.admin.listUsers()
+        
+        if (adminError) {
+          console.error('[Agent Creation] Error listing users:', adminError)
+          return NextResponse.json(
+            { error: `Failed to find user: ${adminError.message}` },
+            { status: 500 }
+          )
+        }
+
+        const foundUser = adminUsers?.users?.find((u: any) => 
+          u.email?.toLowerCase() === targetUserEmail.toLowerCase()
+        )
+
+        if (!foundUser) {
+          return NextResponse.json(
+            { error: `User with email ${targetUserEmail} not found` },
+            { status: 404 }
+          )
+        }
+
+        targetUserId = foundUser.id
+        console.log('[Agent Creation] Admin creating agent for user:', targetUserEmail, 'user_id:', targetUserId)
+      } catch (error) {
+        console.error('[Agent Creation] Error finding user:', error)
+        return NextResponse.json(
+          { 
+            error: `Failed to find user: ${targetUserEmail}`,
+            details: error instanceof Error ? error.message : 'Unknown error'
+          },
+          { status: 500 }
+        )
+      }
+    } else if (isAdmin && body.user_id) {
+      // Admin can also specify user_id directly
+      targetUserId = body.user_id
+      console.log('[Agent Creation] Admin creating agent for user_id:', targetUserId)
+    }
+
+    // Use service role client if admin is creating for another user (to bypass RLS)
+    const dbClient = isAdmin && targetUserId !== user.id 
+      ? createServiceClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        )
+      : supabase
+
+    // Check if target user already has an agent (ONE AGENT PER CLIENT)
+    const { data: existingAgent, error: existingError } = await dbClient
+      .from('agents')
+      .select('id, name')
+      .eq('user_id', targetUserId)
+      .single()
+
+    if (existingAgent) {
+      console.log('[Agent Creation] Target user already has an agent')
+      return NextResponse.json(
+        { 
+          error: 'User already has an agent. Please request changes to the existing agent instead of creating a new one.',
+          // Don't expose agent ID in response
+        },
+        { status: 400 }
+      )
+    }
+
+    // Rate limiting (per target user, not admin)
     const { rateLimiters } = await import('@/lib/rate-limit-supabase')
-    const rateLimit = await rateLimiters.agentCreation(user.id)
+    const rateLimit = await rateLimiters.agentCreation(targetUserId)
     
     if (!rateLimit.allowed) {
       return NextResponse.json(
@@ -97,27 +208,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('[Agent Creation] Step 3: Parsing request body...')
-    let body
-    try {
-      body = await request.json()
-      console.log('[Agent Creation] Request body received:', {
-        hasDescription: !!body.description,
-        descriptionLength: body.description?.length || 0,
-        hasName: !!body.name,
-        name: body.name,
-      })
-    } catch (parseError) {
-      console.error('[Agent Creation] Failed to parse request body:', parseError)
-      return NextResponse.json(
-        { error: 'Invalid request body. Expected JSON.' },
-        { status: 400 }
-      )
-    }
-
-    // Validate input
+    // Validate input (exclude user_email and user_id from validation)
     const { agentCreationSchema, validateInput } = await import('@/lib/validation')
-    const validation = validateInput(agentCreationSchema, body)
+    const { user_email, user_id, ...agentData } = body
+    const validation = validateInput(agentCreationSchema, agentData)
     
     if (!validation.success) {
       return NextResponse.json(
@@ -132,205 +226,75 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { description, name, formData, workflowConfig, provider_type, area_code, voice_id } = validation.data
+    const { description, name, formData, workflowConfig } = validation.data
 
-    // Step 1: Generate agent config using OpenAI
-    console.log('[Agent Creation] Step 4: Generating agent config with OpenAI...')
-    const { generateAgentConfig } = await import('@/lib/openai/client')
-    let agentConfig
-    try {
-      console.log('[Agent Creation] Calling generateAgentConfig with description length:', description.length)
-      agentConfig = await generateAgentConfig(description, formData) // Pass formData for enhanced prompt generation
-      console.log('[Agent Creation] OpenAI config generated successfully')
-    } catch (error) {
-      console.error('[Agent Creation] OpenAI error:', {
-        error,
-        errorType: error instanceof Error ? error.constructor.name : typeof error,
-        errorMessage: error instanceof Error ? error.message : String(error),
-        errorStack: error instanceof Error ? error.stack : undefined,
-      })
-      const errorMessage = error instanceof Error ? error.message : 'Failed to generate agent configuration. Please try again.'
-      return NextResponse.json(
-        { error: errorMessage },
-        { status: 500 }
-      )
-    }
-
-    // Validate agentConfig with detailed logging
-    if (!agentConfig) {
-      console.error('[Agent Creation] agentConfig is null or undefined after OpenAI call')
-      return NextResponse.json(
-        { error: 'Failed to generate agent configuration. Please try again.' },
-        { status: 500 }
-      )
-    }
-
-    console.log('[Agent Creation] agentConfig received:', {
-      hasSystemPrompt: !!agentConfig.systemPrompt,
-      systemPromptType: typeof agentConfig.systemPrompt,
-      systemPromptLength: agentConfig.systemPrompt ? String(agentConfig.systemPrompt).length : 0,
-      systemPromptPreview: agentConfig.systemPrompt ? String(agentConfig.systemPrompt).substring(0, 100) : 'null/undefined',
-      hasVoiceId: !!agentConfig.voiceId,
-      voiceId: agentConfig.voiceId,
-      hasTools: !!agentConfig.tools,
-      toolsLength: agentConfig.tools?.length || 0,
-    })
-
-    // Step 2: Create Twilio agent (ONLY provider)
-    console.log('[Agent Creation] Step 5: Creating Twilio agent...')
-    
-    // Generate a safe name from systemPrompt or use provided name
-    console.log('[Agent Creation] Step 6: Processing system prompt and agent name...')
-    let systemPromptStr: string = 'Untitled Agent'
-    
-    try {
-      if (agentConfig?.systemPrompt && typeof agentConfig.systemPrompt === 'string') {
-        const trimmed = agentConfig.systemPrompt.trim()
-        if (trimmed.length > 0) {
-          systemPromptStr = trimmed
-          console.log('[Agent Creation] Using systemPrompt from agentConfig, length:', trimmed.length)
-        }
-      }
-      
-      // Fallback to description if systemPrompt is not valid
-      if (systemPromptStr === 'Untitled Agent' && description && typeof description === 'string') {
-        const trimmedDesc = description.trim()
-        if (trimmedDesc.length > 0) {
-          systemPromptStr = trimmedDesc
-          console.log('[Agent Creation] Using description as fallback for systemPrompt')
-        }
-      }
-    } catch (error) {
-      console.error('[Agent Creation] Error processing systemPrompt:', error)
-      systemPromptStr = description || 'Untitled Agent'
-    }
-    
-    // Safely create agent name with substring - ensure systemPromptStr is always a string
+    // Generate agent name
     let agentName: string = 'Untitled Agent'
-    try {
-      if (name && typeof name === 'string' && name.trim().length > 0) {
-        agentName = name.trim()
-        console.log('[Agent Creation] Using provided name:', agentName)
-      } else if (systemPromptStr && typeof systemPromptStr === 'string' && systemPromptStr.length > 0) {
-        agentName = systemPromptStr.length > 50
-          ? systemPromptStr.substring(0, 50).trim()
-          : systemPromptStr.trim()
-        console.log('[Agent Creation] Generated name from systemPrompt:', agentName)
-      }
-    } catch (error) {
-      console.error('[Agent Creation] Error creating agent name:', error)
-      agentName = name || description || 'Untitled Agent'
-    }
-    
-    // Purchase Twilio phone number
-    let twilioPhoneNumber = null
-    const { purchasePhoneNumber } = await import('@/lib/twilio/client')
-    
-    try {
-      twilioPhoneNumber = await purchasePhoneNumber({
-        areaCode: area_code,
-      })
-      console.log('[Agent Creation] Twilio phone number purchased:', {
-        sid: twilioPhoneNumber.sid,
-        phoneNumber: twilioPhoneNumber.phoneNumber,
-      })
-    } catch (error) {
-      console.error('[Agent Creation] Twilio phone number purchase error:', error)
-      const errorMessage = error instanceof Error ? error.message : 'Failed to purchase Twilio phone number'
-      return NextResponse.json(
-        { error: errorMessage },
-        { status: 500 }
-      )
+    if (name && typeof name === 'string' && name.trim().length > 0) {
+      agentName = name.trim()
+    } else if (description && typeof description === 'string' && description.trim().length > 0) {
+      agentName = description.length > 50
+        ? description.substring(0, 50).trim()
+        : description.trim()
     }
 
-    // Step 3: Generate API secret
-    console.log('[Agent Creation] Step 7: Generating API secret...')
+    // Generate API secret
+    console.log('[Agent Creation] Generating API secret...')
     const apiSecret = crypto.randomUUID().replace(/-/g, '')
-    console.log('[Agent Creation] API secret generated:', {
-      secretLength: apiSecret.length,
-      secretPrefix: apiSecret.substring(0, 10) + '...',
-    })
+    console.log('[Agent Creation] API secret generated')
 
-    // Step 4: Save agent to database
-    console.log('[Agent Creation] Step 8: Saving agent to database...')
-    // Use the agentName we already created above
-    
-    // First, verify user profile exists (required for foreign key constraint)
-    console.log('[Agent Creation] Checking if user profile exists...')
-    const { data: profile, error: profileError } = await supabase
+    // Verify target user profile exists (required for foreign key constraint)
+    console.log('[Agent Creation] Checking if target user profile exists...')
+    const { data: targetProfile, error: profileError } = await dbClient
       .from('profiles')
       .select('id')
-      .eq('id', user.id)
+      .eq('id', targetUserId)
       .single()
     
-    if (profileError || !profile) {
+    if (profileError || !targetProfile) {
       console.error('[Agent Creation] Profile check failed:', {
         profileError,
-        userId: user.id,
-        profileExists: !!profile,
+        userId: targetUserId,
+        profileExists: !!targetProfile,
       })
       return NextResponse.json(
         { 
-          error: 'User profile not found. Please ensure your account is properly set up.',
+          error: 'User profile not found. Please ensure the account is properly set up.',
           details: profileError?.message || 'Profile does not exist'
         },
         { status: 500 }
       )
     }
     
-    console.log('[Agent Creation] Profile verified, preparing database insert...')
-    // Use voice_id from request if provided (and not empty string), otherwise from agentConfig, or null
-    const finalVoiceId = (voice_id && typeof voice_id === 'string' && voice_id.trim() !== '') ? voice_id : (agentConfig.voiceId || null)
-    
+    // Save agent to database
+    console.log('[Agent Creation] Saving agent to database...')
     const insertData: any = {
-      user_id: user.id,
+      user_id: targetUserId,
       name: agentName,
       api_secret: apiSecret,
-      system_prompt: agentConfig.systemPrompt,
-      voice_id: finalVoiceId,
-      provider_type: 'twilio', // ALWAYS Twilio
+      system_prompt: description || null, // Optional: can be set later
       form_data: formData || {},
       workflow_config: workflowConfig || {},
-      // Twilio-specific fields
-      twilio_phone_number_sid: twilioPhoneNumber?.sid || null,
-      twilio_phone_number: twilioPhoneNumber?.phoneNumber || null,
-      // Vapi fields always null
+      // Legacy fields (kept nullable for backward compatibility)
+      provider_type: null,
+      retell_agent_id: null,
+      retell_phone_number_id: null,
+      twilio_phone_number_sid: null,
+      twilio_phone_number: null,
       vapi_assistant_id: null,
       vapi_phone_number_id: null,
+      voice_id: null,
     }
     
-    console.log('[Agent Creation] Insert data prepared:', {
-      userId: insertData.user_id,
-      name: insertData.name,
-      providerType: insertData.provider_type,
-      vapiAssistantId: insertData.vapi_assistant_id,
-      twilioPhoneNumberSid: insertData.twilio_phone_number_sid,
-      twilioPhoneNumber: insertData.twilio_phone_number,
-      apiSecretLength: insertData.api_secret.length,
-      systemPromptLength: insertData.system_prompt?.length || 0,
-      voiceId: insertData.voice_id,
-    })
-    
-    const { data: agent, error: agentError } = await supabase
+    const { data: agent, error: agentError } = await dbClient
       .from('agents')
       .insert(insertData)
       .select()
       .single()
 
     if (agentError) {
-      console.error('[Agent Creation] Database insert error:', {
-        error: agentError,
-        errorCode: agentError.code,
-        errorMessage: agentError.message,
-        errorDetails: agentError.details,
-        errorHint: agentError.hint,
-        insertData: {
-          ...insertData,
-          system_prompt: insertData.system_prompt ? insertData.system_prompt.substring(0, 100) + '...' : null,
-        },
-      })
+      console.error('[Agent Creation] Database insert error:', agentError)
       
-      // Provide more specific error messages
       let errorMessage = 'Failed to save agent to database'
       if (agentError.code === '23503') {
         errorMessage = 'Foreign key constraint violation. User profile may not exist.'
@@ -350,27 +314,18 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    console.log('[Agent Creation] Agent saved successfully:', {
+    console.log('[Agent Creation] Agent created successfully:', {
       agentId: agent.id,
       agentName: agent.name,
-      createdAt: agent.created_at,
     })
-    console.log('[Agent Creation] Agent creation completed successfully!')
 
     return NextResponse.json({ agent }, { status: 201 })
   } catch (error) {
-    console.error('[Agent Creation] Unexpected error in agent creation:', {
+    logError('Agent Creation', error)
+    return createErrorResponse(
       error,
-      errorType: error instanceof Error ? error.constructor.name : typeof error,
-      errorMessage: error instanceof Error ? error.message : String(error),
-      errorStack: error instanceof Error ? error.stack : undefined,
-    })
-    return NextResponse.json(
-      { 
-        error: 'Internal server error',
-        details: error instanceof Error ? error.message : 'Unknown error occurred'
-      },
-      { status: 500 }
+      'Internal server error',
+      500
     )
   }
 }

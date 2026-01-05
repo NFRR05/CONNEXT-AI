@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { rateLimiters } from '@/lib/rate-limit-supabase'
 import { webhookInputSchema, validateInput } from '@/lib/validation'
+import { createErrorResponse, logError } from '@/lib/security/error-handler'
+import { normalizePhone, sanitizeText } from '@/lib/security/sanitization'
 
 export async function POST(request: NextRequest) {
   try {
@@ -78,15 +80,20 @@ export async function POST(request: NextRequest) {
 
     const validatedData = validation.data
 
-    // 6. Insert lead with validated data
+    // Sanitize data before storage
+    const sanitizedPhone = validatedData.phone ? normalizePhone(validatedData.phone) : null
+    const sanitizedSummary = validatedData.summary ? sanitizeText(validatedData.summary) : null
+    const sanitizedTranscript = validatedData.transcript ? sanitizeText(validatedData.transcript) : null
+
+    // 6. Insert lead with validated and sanitized data
     const { data: lead, error: leadError } = await supabase
       .from('leads')
       .insert({
         agent_id: agent.id,
-        customer_phone: validatedData.phone,
-        call_summary: validatedData.summary,
-        recording_url: validatedData.recording,
-        call_transcript: validatedData.transcript,
+        customer_phone: sanitizedPhone,
+        call_summary: sanitizedSummary,
+        recording_url: validatedData.recording, // URL already validated by Zod
+        call_transcript: sanitizedTranscript,
         sentiment: validatedData.sentiment,
         structured_data: validatedData.structured_data || {},
         duration: validatedData.duration,
@@ -95,10 +102,11 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (leadError) {
-      console.error('Error inserting lead:', leadError)
-      return NextResponse.json(
-        { error: 'Failed to save lead' },
-        { status: 500 }
+      logError('Webhook Ingest', leadError)
+      return createErrorResponse(
+        leadError,
+        'Failed to save lead',
+        500
       )
     }
 
@@ -122,10 +130,11 @@ export async function POST(request: NextRequest) {
       }
     )
   } catch (error) {
-    console.error('Webhook ingest error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+    logError('Webhook Ingest', error)
+    return createErrorResponse(
+      error,
+      'Internal server error',
+      500
     )
   }
 }

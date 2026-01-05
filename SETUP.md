@@ -163,14 +163,18 @@ Vapi.ai (Voice AI)
 3. Server components use `lib/supabase/server.ts` to access user data
 4. Client components use `lib/supabase/client.ts` for client-side operations
 
-### Webhook Flow
+### Data Flow (n8n-First Architecture)
 
-1. Customer calls Vapi phone number
-2. Vapi processes the call and sends webhook to user's n8n instance
-3. n8n workflow extracts data and POSTs to `/api/webhooks/ingest`
-4. CONNEXT AI validates `x-agent-secret` header
-5. Lead is inserted into database
-6. Dashboard updates in real-time via Supabase Realtime subscriptions
+1. Customer calls phone number (Twilio/Retell/Vapi)
+2. Voice provider sends webhook to **n8n workflow** (not CONNEXT AI)
+3. **n8n workflow** processes conversation using AI nodes
+4. **n8n workflow** sends responses back to voice provider
+5. After call ends, **n8n workflow** extracts data and POSTs to CONNEXT AI `/api/webhooks/ingest`
+6. CONNEXT AI validates `x-agent-secret` header
+7. Lead is inserted into database
+8. Dashboard updates in real-time via Supabase Realtime subscriptions
+
+**Key Point**: All conversation logic happens in n8n. CONNEXT AI only receives final data.
 
 ## Next Steps for Implementation
 

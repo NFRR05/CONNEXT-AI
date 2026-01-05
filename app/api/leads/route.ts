@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createErrorResponse, logError } from '@/lib/security/error-handler'
 
 export async function GET(request: NextRequest) {
   try {
@@ -67,10 +68,11 @@ export async function GET(request: NextRequest) {
     const { data: leads, error: leadsError } = await query
 
     if (leadsError) {
-      console.error('Error fetching leads:', leadsError)
-      return NextResponse.json(
-        { error: 'Failed to fetch leads' },
-        { status: 500 }
+      logError('Leads GET', leadsError)
+      return createErrorResponse(
+        leadsError,
+        'Failed to fetch leads',
+        500
       )
     }
 
@@ -91,10 +93,11 @@ export async function GET(request: NextRequest) {
       total: count || 0,
     }, { status: 200 })
   } catch (error) {
-    console.error('Error fetching leads:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+    logError('Leads GET', error)
+    return createErrorResponse(
+      error,
+      'Internal server error',
+      500
     )
   }
 }
@@ -193,19 +196,21 @@ export async function PATCH(request: NextRequest) {
       .single()
 
     if (updateError) {
-      console.error('Error updating lead:', updateError)
-      return NextResponse.json(
-        { error: 'Failed to update lead' },
-        { status: 500 }
+      logError('Leads PATCH', updateError)
+      return createErrorResponse(
+        updateError,
+        'Failed to update lead',
+        500
       )
     }
 
     return NextResponse.json({ lead: updatedLead }, { status: 200 })
   } catch (error) {
-    console.error('Error updating lead:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+    logError('Leads PATCH', error)
+    return createErrorResponse(
+      error,
+      'Internal server error',
+      500
     )
   }
 }

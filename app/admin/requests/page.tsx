@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { GlassCard, GlassCardContent, GlassCardDescription, GlassCardHeader, GlassCardTitle } from '@/components/ui/glass-card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
@@ -70,6 +70,7 @@ export default function AdminRequestsPage() {
   useEffect(() => {
     fetchRequests()
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleApprove = async (requestId: string) => {
@@ -87,8 +88,30 @@ export default function AdminRequestsPage() {
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to approve request')
+        let error
+        try {
+          error = await response.json()
+        } catch (e) {
+          error = { error: `HTTP ${response.status}: ${response.statusText}` }
+        }
+        // Build detailed error message
+        let errorMessage = error.error || 'Failed to approve request'
+        if (error.details) {
+          errorMessage += `: ${error.details}`
+        }
+
+        // Log full error for debugging
+        console.error('Approve request error - Full details:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: error,
+          errorString: JSON.stringify(error, null, 2),
+        })
+
+        // Show the actual error details in the toast
+        const toastMessage = error.details || error.error || 'Failed to approve request'
+
+        throw new Error(toastMessage)
       }
 
       toast({
@@ -160,7 +183,7 @@ export default function AdminRequestsPage() {
       completed: 'default',
       cancelled: 'outline',
     }
-    
+
     const icons = {
       pending: Clock,
       approved: CheckCircle,
@@ -197,7 +220,7 @@ export default function AdminRequestsPage() {
     setLoadingPreview(true)
     try {
       const response = await fetch(`/api/admin/agent-requests/${requestId}/blueprint`)
-      
+
       if (!response.ok) {
         const error = await response.json()
         throw new Error(error.error || 'Failed to generate preview')
@@ -238,38 +261,38 @@ export default function AdminRequestsPage() {
         <div className="space-y-4">
           <h2 className="text-xl font-semibold">Pending Requests ({pendingRequests.length})</h2>
           {pendingRequests.map((request) => (
-            <Card key={request.id}>
-              <CardHeader>
+            <GlassCard key={request.id}>
+              <GlassCardHeader>
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                   <div className="space-y-1 flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <CardTitle className="break-words">{request.name || getRequestTypeLabel(request.request_type)}</CardTitle>
+                      <GlassCardTitle className="break-words">{request.name || getRequestTypeLabel(request.request_type)}</GlassCardTitle>
                       {getStatusBadge(request.status)}
                       <Badge variant="outline" className="text-xs">{request.priority}</Badge>
                     </div>
-                    <CardDescription className="text-xs sm:text-sm break-words">
+                    <GlassCardDescription className="text-xs sm:text-sm break-words">
                       {getRequestTypeLabel(request.request_type)} • {request.profiles?.email || 'Unknown user'} • {new Date(request.created_at).toLocaleDateString()}
-                    </CardDescription>
+                    </GlassCardDescription>
                   </div>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setSelectedRequest(request)}
-                    className="w-full sm:w-auto"
+                    className="w-full sm:w-auto border-white/10 hover:bg-white/5 hover:text-primary"
                   >
                     <Eye className="mr-2 h-4 w-4" />
                     Review
                   </Button>
                 </div>
-              </CardHeader>
+              </GlassCardHeader>
               {request.description && (
-                <CardContent>
+                <GlassCardContent>
                   <p className="text-sm text-muted-foreground line-clamp-2">
                     {request.description}
                   </p>
-                </CardContent>
+                </GlassCardContent>
               )}
-            </Card>
+            </GlassCard>
           ))}
         </div>
       )}
@@ -280,21 +303,21 @@ export default function AdminRequestsPage() {
           <h2 className="text-xl font-semibold">Other Requests</h2>
           <div className="space-y-2">
             {otherRequests.map((request) => (
-              <Card key={request.id}>
-                <CardHeader>
+              <GlassCard key={request.id}>
+                <GlassCardHeader>
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
                     <div className="space-y-2 flex-1 min-w-0">
-                      <CardTitle className="text-base break-words">{request.name || getRequestTypeLabel(request.request_type)}</CardTitle>
+                      <GlassCardTitle className="text-base break-words">{request.name || getRequestTypeLabel(request.request_type)}</GlassCardTitle>
                       <div className="flex items-center gap-2 flex-wrap">
                         {getStatusBadge(request.status)}
-                        <CardDescription className="text-xs sm:text-sm break-words">
+                        <GlassCardDescription className="text-xs sm:text-sm break-words">
                           {request.profiles?.email || 'Unknown user'} • {new Date(request.created_at).toLocaleDateString()}
-                        </CardDescription>
+                        </GlassCardDescription>
                       </div>
                     </div>
                   </div>
-                </CardHeader>
-              </Card>
+                </GlassCardHeader>
+              </GlassCard>
             ))}
           </div>
         </div>
@@ -302,18 +325,18 @@ export default function AdminRequestsPage() {
 
       {/* Review Modal */}
       {selectedRequest && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <CardHeader>
-              <CardTitle>Review Request</CardTitle>
-              <CardDescription className="break-words">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <GlassCard className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <GlassCardHeader>
+              <GlassCardTitle>Review Request</GlassCardTitle>
+              <GlassCardDescription className="break-words">
                 {getRequestTypeLabel(selectedRequest.request_type)} from {selectedRequest.profiles?.email}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+              </GlassCardDescription>
+            </GlassCardHeader>
+            <GlassCardContent className="space-y-4">
               <div>
                 <Label>Request Details</Label>
-                <div className="mt-2 p-4 bg-muted rounded-lg space-y-2">
+                <div className="mt-2 p-4 bg-muted/20 rounded-lg space-y-2 border border-white/5">
                   <div>
                     <span className="font-medium">Name:</span> {selectedRequest.name || 'N/A'}
                   </div>
@@ -339,6 +362,7 @@ export default function AdminRequestsPage() {
                       size="sm"
                       onClick={() => loadWorkflowPreview(selectedRequest.id)}
                       disabled={loadingPreview}
+                      className="border-white/10 hover:bg-white/5 hover:text-primary"
                     >
                       {loadingPreview ? (
                         <>
@@ -359,14 +383,14 @@ export default function AdminRequestsPage() {
                     </Button>
                   </div>
                   {showWorkflowPreview && workflowPreview && (
-                    <div className="mt-2 p-4 bg-muted rounded-lg max-h-96 overflow-y-auto">
+                    <div className="mt-2 p-4 bg-muted/20 rounded-lg max-h-96 overflow-y-auto border border-white/5">
                       <pre className="text-xs font-mono whitespace-pre-wrap break-words">
                         {JSON.stringify(workflowPreview, null, 2)}
                       </pre>
                     </div>
                   )}
                   {showWorkflowPreview && !workflowPreview && (
-                    <div className="mt-2 p-4 bg-muted rounded-lg text-sm text-muted-foreground">
+                    <div className="mt-2 p-4 bg-muted/20 rounded-lg text-sm text-muted-foreground">
                       No workflow preview available
                     </div>
                   )}
@@ -381,6 +405,7 @@ export default function AdminRequestsPage() {
                   onChange={(e) => setAdminNotes(e.target.value)}
                   placeholder="Add notes about this request..."
                   rows={4}
+                  className="bg-background/20 backdrop-blur-sm border-white/10 focus:border-primary/50"
                 />
               </div>
 
@@ -388,7 +413,7 @@ export default function AdminRequestsPage() {
                 <Button
                   onClick={() => handleApprove(selectedRequest.id)}
                   disabled={actionLoading === selectedRequest.id}
-                  className="flex-1"
+                  className="flex-1 shadow-lg shadow-primary/20"
                 >
                   {actionLoading === selectedRequest.id ? 'Processing...' : 'Approve'}
                 </Button>
@@ -396,7 +421,7 @@ export default function AdminRequestsPage() {
                   variant="destructive"
                   onClick={() => handleReject(selectedRequest.id)}
                   disabled={actionLoading === selectedRequest.id}
-                  className="flex-1"
+                  className="flex-1 shadow-lg shadow-destructive/20"
                 >
                   Reject
                 </Button>
@@ -408,16 +433,15 @@ export default function AdminRequestsPage() {
                     setShowWorkflowPreview(false)
                     setWorkflowPreview(null)
                   }}
-                  className="w-full sm:w-auto"
+                  className="w-full sm:w-auto border-white/10 hover:bg-white/5 hover:text-primary"
                 >
                   Cancel
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+            </GlassCardContent>
+          </GlassCard>
         </div>
       )}
     </div>
   )
 }
-

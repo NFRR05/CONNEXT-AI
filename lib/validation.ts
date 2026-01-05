@@ -1,15 +1,27 @@
 import { z } from 'zod'
+import { normalizePhone } from '@/lib/security/sanitization'
 
 // Phone number validation (E.164 format)
 const phoneRegex = /^\+[1-9]\d{1,14}$/
 
+// Password validation (OWASP compliant)
+const passwordSchema = z.string()
+  .min(12, 'Password must be at least 12 characters')
+  .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+  .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+  .regex(/\d/, 'Password must contain at least one number')
+  .regex(/[!@#$%^&*(),.?":{}|<>]/, 'Password must contain at least one special character')
+
 // Webhook input validation
 export const webhookInputSchema = z.object({
   phone: z.string()
-    .regex(phoneRegex, 'Phone must be in E.164 format (e.g., +1234567890)')
     .max(20)
     .optional()
-    .nullable(),
+    .nullable()
+    .transform((val) => val ? normalizePhone(val) : null)
+    .refine((val) => !val || phoneRegex.test(val), {
+      message: 'Phone must be in E.164 format (e.g., +1234567890)'
+    }),
   
   summary: z.string()
     .max(10000, 'Summary must be less than 10,000 characters')
@@ -48,25 +60,13 @@ export const agentCreationSchema = z.object({
   description: z.string()
     .min(10, 'Description must be at least 10 characters')
     .max(5000, 'Description must be less than 5,000 characters')
-    .trim(),
+    .trim()
+    .optional(),
   
   name: z.string()
     .min(1, 'Name cannot be empty')
     .max(100, 'Name must be less than 100 characters')
     .trim()
-    .optional(),
-  
-  voice_id: z.string()
-    .max(100)
-    .optional()
-    .nullable(),
-  
-  provider_type: z.enum(['twilio'])
-    .optional()
-    .default('twilio'),
-  
-  area_code: z.string()
-    .regex(/^\d{3}$/, 'Area code must be 3 digits')
     .optional(),
   
   formData: z.record(z.any())
