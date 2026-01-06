@@ -1,27 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { GlassCard, GlassCardContent, GlassCardDescription, GlassCardHeader, GlassCardTitle } from '@/components/ui/glass-card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { RequestsList, type RequestItem } from '@/components/ui/requests-list'
+import { RequestReviewModal } from '@/components/ui/request-review-modal'
 import { createClient } from '@/lib/supabase/client'
-import { Clock, CheckCircle, XCircle, Eye, MessageSquare, FileJson, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
-interface AgentRequest {
-  id: string
+interface AgentRequest extends RequestItem {
   user_id: string
-  request_type: 'create' | 'update' | 'delete'
-  status: 'pending' | 'approved' | 'rejected' | 'completed' | 'cancelled'
-  name: string | null
-  description: string | null
-  priority: string
-  created_at: string
-  admin_notes: string | null
-  agent_id: string | null
   form_data: any
   workflow_config: any
   profiles: {
@@ -119,10 +105,7 @@ export default function AdminRequestsPage() {
         description: 'The agent request has been approved and will be processed.',
       })
 
-      setSelectedRequest(null)
-      setAdminNotes('')
-      setShowWorkflowPreview(false)
-      setWorkflowPreview(null)
+      handleCloseModal()
       fetchRequests()
     } catch (error: any) {
       toast({
@@ -159,10 +142,7 @@ export default function AdminRequestsPage() {
         description: 'The request has been rejected.',
       })
 
-      setSelectedRequest(null)
-      setAdminNotes('')
-      setShowWorkflowPreview(false)
-      setWorkflowPreview(null)
+      handleCloseModal()
       fetchRequests()
     } catch (error: any) {
       toast({
@@ -175,33 +155,6 @@ export default function AdminRequestsPage() {
     }
   }
 
-  const getStatusBadge = (status: string) => {
-    const variants: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-      pending: 'secondary',
-      approved: 'default',
-      rejected: 'destructive',
-      completed: 'default',
-      cancelled: 'outline',
-    }
-
-    const icons = {
-      pending: Clock,
-      approved: CheckCircle,
-      rejected: XCircle,
-      completed: CheckCircle,
-      cancelled: XCircle,
-    }
-
-    const Icon = icons[status as keyof typeof icons] || Clock
-
-    return (
-      <Badge variant={variants[status] || 'secondary'}>
-        <Icon className="mr-1 h-3 w-3" />
-        {status.charAt(0).toUpperCase() + status.slice(1)}
-      </Badge>
-    )
-  }
-
   const getRequestTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
       create: 'Create Agent',
@@ -211,8 +164,15 @@ export default function AdminRequestsPage() {
     return labels[type] || type
   }
 
+  const handleReviewRequest = (id: string) => {
+    const request = requests.find(r => r.id === id)
+    if (request) {
+      setSelectedRequest(request as AgentRequest)
+    }
+  }
+
   const loadWorkflowPreview = async (requestId: string) => {
-    if (workflowPreview) {
+    if (workflowPreview && selectedRequest?.id === requestId) {
       setShowWorkflowPreview(!showWorkflowPreview)
       return
     }
@@ -240,18 +200,37 @@ export default function AdminRequestsPage() {
     }
   }
 
-  const pendingRequests = requests.filter(r => r.status === 'pending')
-  const otherRequests = requests.filter(r => r.status !== 'pending')
+  const handleToggleWorkflowPreview = () => {
+    if (selectedRequest) {
+      loadWorkflowPreview(selectedRequest.id)
+    }
+  }
+
+  const handleCloseModal = () => {
+    setSelectedRequest(null)
+    setAdminNotes('')
+    setShowWorkflowPreview(false)
+    setWorkflowPreview(null)
+  }
+
+  const pendingRequests = requests.filter(r => r.status === 'pending').map(r => ({
+    ...r,
+    user_email: (r as AgentRequest).profiles?.email || null
+  }))
+  const otherRequests = requests.filter(r => r.status !== 'pending').map(r => ({
+    ...r,
+    user_email: (r as AgentRequest).profiles?.email || null
+  }))
 
   if (loading) {
     return <div className="p-8">Loading requests...</div>
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold">Agent Requests</h1>
-        <p className="text-muted-foreground mt-1 text-sm sm:text-base">
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Agent Requests</h1>
+        <p className="text-muted-foreground mt-2 text-sm sm:text-base">
           Review and manage agent creation and modification requests
         </p>
       </div>
@@ -260,40 +239,11 @@ export default function AdminRequestsPage() {
       {pendingRequests.length > 0 && (
         <div className="space-y-4">
           <h2 className="text-xl font-semibold">Pending Requests ({pendingRequests.length})</h2>
-          {pendingRequests.map((request) => (
-            <GlassCard key={request.id}>
-              <GlassCardHeader>
-                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                  <div className="space-y-1 flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <GlassCardTitle className="break-words">{request.name || getRequestTypeLabel(request.request_type)}</GlassCardTitle>
-                      {getStatusBadge(request.status)}
-                      <Badge variant="outline" className="text-xs">{request.priority}</Badge>
-                    </div>
-                    <GlassCardDescription className="text-xs sm:text-sm break-words">
-                      {getRequestTypeLabel(request.request_type)} • {request.profiles?.email || 'Unknown user'} • {new Date(request.created_at).toLocaleDateString()}
-                    </GlassCardDescription>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSelectedRequest(request)}
-                    className="w-full sm:w-auto border-white/10 hover:bg-white/5 hover:text-primary"
-                  >
-                    <Eye className="mr-2 h-4 w-4" />
-                    Review
-                  </Button>
-                </div>
-              </GlassCardHeader>
-              {request.description && (
-                <GlassCardContent>
-                  <p className="text-sm text-muted-foreground line-clamp-2">
-                    {request.description}
-                  </p>
-                </GlassCardContent>
-              )}
-            </GlassCard>
-          ))}
+          <RequestsList
+            requests={pendingRequests}
+            onReviewRequest={handleReviewRequest}
+            showUserEmail={true}
+          />
         </div>
       )}
 
@@ -301,147 +251,44 @@ export default function AdminRequestsPage() {
       {otherRequests.length > 0 && (
         <div className="space-y-4">
           <h2 className="text-xl font-semibold">Other Requests</h2>
-          <div className="space-y-2">
-            {otherRequests.map((request) => (
-              <GlassCard key={request.id}>
-                <GlassCardHeader>
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-                    <div className="space-y-2 flex-1 min-w-0">
-                      <GlassCardTitle className="text-base break-words">{request.name || getRequestTypeLabel(request.request_type)}</GlassCardTitle>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {getStatusBadge(request.status)}
-                        <GlassCardDescription className="text-xs sm:text-sm break-words">
-                          {request.profiles?.email || 'Unknown user'} • {new Date(request.created_at).toLocaleDateString()}
-                        </GlassCardDescription>
-                      </div>
-                    </div>
-                  </div>
-                </GlassCardHeader>
-              </GlassCard>
-            ))}
-          </div>
+          <RequestsList
+            requests={otherRequests}
+            showUserEmail={true}
+          />
         </div>
+      )}
+
+      {/* Empty State */}
+      {pendingRequests.length === 0 && otherRequests.length === 0 && (
+        <RequestsList
+          requests={[]}
+          showUserEmail={true}
+          emptyStateTitle="No requests found"
+          emptyStateDescription="There are no agent requests to review at this time"
+        />
       )}
 
       {/* Review Modal */}
-      {selectedRequest && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <GlassCard className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <GlassCardHeader>
-              <GlassCardTitle>Review Request</GlassCardTitle>
-              <GlassCardDescription className="break-words">
-                {getRequestTypeLabel(selectedRequest.request_type)} from {selectedRequest.profiles?.email}
-              </GlassCardDescription>
-            </GlassCardHeader>
-            <GlassCardContent className="space-y-4">
-              <div>
-                <Label>Request Details</Label>
-                <div className="mt-2 p-4 bg-muted/20 rounded-lg space-y-2 border border-white/5">
-                  <div>
-                    <span className="font-medium">Name:</span> {selectedRequest.name || 'N/A'}
-                  </div>
-                  {selectedRequest.description && (
-                    <div>
-                      <span className="font-medium">Description:</span>
-                      <p className="mt-1 text-sm break-words">{selectedRequest.description}</p>
-                    </div>
-                  )}
-                  <div>
-                    <span className="font-medium">Priority:</span> {selectedRequest.priority}
-                  </div>
-                </div>
-              </div>
-
-              {selectedRequest.request_type === 'create' && (
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <Label>Workflow Preview</Label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => loadWorkflowPreview(selectedRequest.id)}
-                      disabled={loadingPreview}
-                      className="border-white/10 hover:bg-white/5 hover:text-primary"
-                    >
-                      {loadingPreview ? (
-                        <>
-                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                          Generating...
-                        </>
-                      ) : showWorkflowPreview ? (
-                        <>
-                          <ChevronUp className="mr-2 h-4 w-4" />
-                          Hide Preview
-                        </>
-                      ) : (
-                        <>
-                          <FileJson className="mr-2 h-4 w-4" />
-                          Preview Workflow
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                  {showWorkflowPreview && workflowPreview && (
-                    <div className="mt-2 p-4 bg-muted/20 rounded-lg max-h-96 overflow-y-auto border border-white/5">
-                      <pre className="text-xs font-mono whitespace-pre-wrap break-words">
-                        {JSON.stringify(workflowPreview, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                  {showWorkflowPreview && !workflowPreview && (
-                    <div className="mt-2 p-4 bg-muted/20 rounded-lg text-sm text-muted-foreground">
-                      No workflow preview available
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div>
-                <Label htmlFor="admin_notes">Admin Notes</Label>
-                <Textarea
-                  id="admin_notes"
-                  value={adminNotes}
-                  onChange={(e) => setAdminNotes(e.target.value)}
-                  placeholder="Add notes about this request..."
-                  rows={4}
-                  className="bg-background/20 backdrop-blur-sm border-white/10 focus:border-primary/50"
-                />
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-2">
-                <Button
-                  onClick={() => handleApprove(selectedRequest.id)}
-                  disabled={actionLoading === selectedRequest.id}
-                  className="flex-1 shadow-lg shadow-primary/20"
-                >
-                  {actionLoading === selectedRequest.id ? 'Processing...' : 'Approve'}
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={() => handleReject(selectedRequest.id)}
-                  disabled={actionLoading === selectedRequest.id}
-                  className="flex-1 shadow-lg shadow-destructive/20"
-                >
-                  Reject
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setSelectedRequest(null)
-                    setAdminNotes('')
-                    setShowWorkflowPreview(false)
-                    setWorkflowPreview(null)
-                  }}
-                  className="w-full sm:w-auto border-white/10 hover:bg-white/5 hover:text-primary"
-                >
-                  Cancel
-                </Button>
-              </div>
-            </GlassCardContent>
-          </GlassCard>
-        </div>
-      )}
+      <RequestReviewModal
+        open={!!selectedRequest}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleCloseModal()
+          }
+        }}
+        request={selectedRequest}
+        adminNotes={adminNotes}
+        onAdminNotesChange={setAdminNotes}
+        onApprove={() => selectedRequest && handleApprove(selectedRequest.id)}
+        onReject={() => selectedRequest && handleReject(selectedRequest.id)}
+        onCancel={handleCloseModal}
+        actionLoading={actionLoading === selectedRequest?.id}
+        showWorkflowPreview={showWorkflowPreview}
+        workflowPreview={workflowPreview}
+        loadingPreview={loadingPreview}
+        onToggleWorkflowPreview={handleToggleWorkflowPreview}
+        getRequestTypeLabel={getRequestTypeLabel}
+      />
     </div>
   )
 }

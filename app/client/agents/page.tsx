@@ -61,10 +61,10 @@ export default function ClientAgentsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold">My Agents</h1>
-        <p className="text-muted-foreground mt-1 text-sm sm:text-base">
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">My Agents</h1>
+        <p className="text-muted-foreground mt-2 text-sm sm:text-base">
           View your active AI agents
         </p>
       </div>
@@ -114,7 +114,7 @@ export default function ClientAgentsPage() {
                 )}
               </div>
               <Link href={`/client/agents/${agent.id}`}>
-                <Button variant="outline" className="w-full border-white/10 hover:bg-white/5 hover:text-primary">
+                <Button variant="outline" className="w-full">
                   <Eye className="mr-2 h-4 w-4" />
                   View Details
                 </Button>

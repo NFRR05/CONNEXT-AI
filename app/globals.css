@@ -28,7 +28,8 @@
 
   .dark {
     --background: 222.2 84% 4.9%;
-    --background-image: radial-gradient(circle at 50% 0%, hsl(210 40% 98% / 0.05), transparent 60%);
+    --background-image: radial-gradient(circle at 50% 0%, hsl(210 40% 98% / 0.05), transparent 60%),
+                        radial-gradient(circle at 80% 20%, hsl(217.2 32.6% 17.5% / 0.1), transparent 50%);
     --foreground: 210 40% 98%;
     --card: 222.2 84% 4.9%;
     --card-foreground: 210 40% 98%;
@@ -64,10 +65,21 @@
 
 @layer utilities {
   .glass {
-    @apply bg-background/60 backdrop-blur-xl border border-border/50;
+    @apply bg-background/80 backdrop-blur-xl border border-border/50 shadow-xl;
   }
 
   .glass-card {
-    @apply bg-card/60 backdrop-blur-xl border border-border/50 shadow-lg;
+    @apply bg-white/80 backdrop-blur-xl border border-border/50 shadow-xl;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.7) 100%);
+  }
+
+  .glass-sidebar {
+    @apply bg-white/70 backdrop-blur-2xl border-r border-border/50;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0.6) 100%);
+  }
+
+  .glass-navbar {
+    @apply bg-white/70 backdrop-blur-2xl border-b border-border/50;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.7) 100%);
   }
 }

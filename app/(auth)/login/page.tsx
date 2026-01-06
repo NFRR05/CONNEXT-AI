@@ -8,16 +8,7 @@ import Link from 'next/link'
 
 const loginSteps: Step[] = [
   { id: 1, label: "Email", field: "email", placeholder: "you@example.com", type: "email" },
-  {
-    id: 2,
-    label: "Password",
-    field: "password",
-    placeholder: "",
-    fields: [
-      { field: "password", label: "Password", placeholder: "Enter your password", type: "password" },
-      { field: "confirmPassword", label: "Confirm Password", placeholder: "Confirm your password", type: "password" }
-    ]
-  },
+  { id: 2, label: "Password", field: "password", placeholder: "Enter your password", type: "password" },
 ]
 
 function LoginForm() {
@@ -28,19 +19,10 @@ function LoginForm() {
     setLoading(true)
     setError(null)
 
-    const password = formData.password
-    const confirmPassword = formData.confirmPassword
-
-    if (password !== confirmPassword) {
-      setError('Passwords do not match')
-      setLoading(false)
-      return
-    }
-
     // Convert formData to FormData for the auth function
     const formDataObj = new FormData()
     formDataObj.append('email', formData.email)
-    formDataObj.append('password', password)
+    formDataObj.append('password', formData.password)
 
     const result = await signInWithEmail(formDataObj)
 

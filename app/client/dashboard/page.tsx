@@ -1,12 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { GlassCard, GlassCardContent, GlassCardDescription, GlassCardHeader, GlassCardTitle } from '@/components/ui/glass-card'
-import { Button } from '@/components/ui/button'
-import { StatsCardsWithLinks, type StatsCardWithLinkData } from '@/components/ui/stats-cards-with-links'
-import { createClient } from '@/lib/supabase/client'
-import { MessageSquare, Clock, CheckCircle, XCircle, Plus, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
+import { StatsCardsWithLinks, type StatsCardWithLinkData } from '@/components/ui/stats-cards-with-links'
+import { QuickActionCard, type ActionItem } from '@/components/ui/quick-action-card'
+import { Button } from '@/components/ui/button'
+import { Loader } from '@/components/ui/loader'
+import { createClient } from '@/lib/supabase/client'
+import { MessageSquare, Clock, CheckCircle } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 interface DashboardStats {
   activeAgents: number
@@ -16,6 +18,7 @@ interface DashboardStats {
 }
 
 export default function ClientDashboard() {
+  const router = useRouter()
   const [stats, setStats] = useState<DashboardStats>({
     activeAgents: 0,
     pendingRequests: 0,
@@ -82,15 +85,19 @@ export default function ClientDashboard() {
   }
 
   if (loading) {
-    return <div className="p-8">Loading dashboard...</div>
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader size="lg" />
+      </div>
+    )
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground mt-1 text-sm sm:text-base">
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground mt-2 text-sm sm:text-base">
             Overview of your agents and requests
           </p>
         </div>
@@ -136,46 +143,28 @@ export default function ClientDashboard() {
       />
 
       {/* Quick Actions */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <GlassCard>
-          <GlassCardHeader>
-            <GlassCardTitle>Quick Actions</GlassCardTitle>
-            <GlassCardDescription>Common tasks and shortcuts</GlassCardDescription>
-          </GlassCardHeader>
-          <GlassCardContent className="space-y-2">
-            <Link href="/client/agents">
-              <Button variant="outline" className="w-full justify-start border-white/10 hover:bg-white/5 hover:text-primary">
-                <MessageSquare className="mr-2 h-4 w-4 text-black" />
-                View My Agent
-              </Button>
-            </Link>
-            <Link href="/client/requests">
-              <Button variant="outline" className="w-full justify-start border-white/10 hover:bg-white/5 hover:text-primary">
-                <Clock className="mr-2 h-4 w-4 text-black" />
-                View Requests
-              </Button>
-            </Link>
-            <Link href="/client/leads">
-              <Button variant="outline" className="w-full justify-start border-white/10 hover:bg-white/5 hover:text-primary">
-                <CheckCircle className="mr-2 h-4 w-4 text-black" />
-                View Leads
-              </Button>
-            </Link>
-          </GlassCardContent>
-        </GlassCard>
-
-        <GlassCard>
-          <GlassCardHeader>
-            <GlassCardTitle>Recent Activity</GlassCardTitle>
-            <GlassCardDescription>Latest updates on your requests</GlassCardDescription>
-          </GlassCardHeader>
-          <GlassCardContent>
-            <div className="text-sm text-muted-foreground p-4 bg-black/20 rounded-lg">
-              Check your <Link href="/client/requests" className="text-primary hover:underline font-semibold">requests page</Link> to see the latest updates.
-            </div>
-          </GlassCardContent>
-        </GlassCard>
-      </div>
+      <QuickActionCard
+        title="Quick Actions"
+        subtitle="Common tasks and shortcuts"
+        actions={[
+          {
+            icon: <MessageSquare className="h-full w-full" />,
+            label: 'Agents',
+            href: '/client/agents',
+          },
+          {
+            icon: <Clock className="h-full w-full" />,
+            label: 'Requests',
+            href: '/client/requests',
+          },
+          {
+            icon: <CheckCircle className="h-full w-full" />,
+            label: 'Leads',
+            href: '/client/leads',
+          },
+        ]}
+        columns={3}
+      />
     </div>
   )
 }

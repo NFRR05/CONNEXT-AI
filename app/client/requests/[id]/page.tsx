@@ -5,8 +5,10 @@ import { useParams, useRouter } from 'next/navigation'
 import { GlassCard, GlassCardContent, GlassCardDescription, GlassCardHeader, GlassCardTitle } from '@/components/ui/glass-card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Loader } from '@/components/ui/loader'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowLeft, Clock, CheckCircle, XCircle, MessageSquare } from 'lucide-react'
+import { ArrowLeft, Clock, CheckCircle, XCircle, MessageSquare, FileText, Workflow } from 'lucide-react'
 import Link from 'next/link'
 import { useToast } from '@/hooks/use-toast'
 
@@ -147,7 +149,11 @@ export default function RequestDetailPage() {
   }
 
   if (loading) {
-    return <div className="p-8">Loading request details...</div>
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader size="lg" />
+      </div>
+    )
   }
 
   if (!request) {
@@ -170,15 +176,15 @@ export default function RequestDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <Link href="/client/requests" className="flex items-center text-muted-foreground hover:text-foreground">
+    <div className="space-y-6 max-w-4xl mx-auto">
+      <Link href="/client/requests" className="flex items-center text-muted-foreground hover:text-foreground transition-colors">
         <ArrowLeft className="h-4 w-4 mr-2" />
         Back to Requests
       </Link>
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">{request.name || getRequestTypeLabel(request.request_type)}</h1>
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">{request.name || getRequestTypeLabel(request.request_type)}</h1>
           <div className="flex items-center gap-2 mt-2">
             {getStatusBadge(request.status)}
             <span className="text-sm text-muted-foreground">
@@ -191,12 +197,35 @@ export default function RequestDetailPage() {
             variant="outline"
             onClick={handleCancel}
             disabled={cancelling}
-            className="border-white/10 hover:bg-white/5 hover:text-destructive"
+            className="shadow-lg shadow-primary/20"
           >
-            {cancelling ? 'Cancelling...' : 'Cancel Request'}
+            {cancelling ? (
+              <>
+                <Loader size="sm" className="mr-2" />
+                Cancelling...
+              </>
+            ) : (
+              'Cancel Request'
+            )}
           </Button>
         )}
       </div>
+
+      <Tabs defaultValue="details" className="w-full">
+        <TabsList className="w-full justify-start">
+          <TabsTrigger value="details">Details</TabsTrigger>
+          {request.form_data && Object.keys(request.form_data).length > 0 && (
+            <TabsTrigger value="form-data">Form Data</TabsTrigger>
+          )}
+          {request.workflow_config && Object.keys(request.workflow_config).length > 0 && (
+            <TabsTrigger value="workflow">Workflow</TabsTrigger>
+          )}
+          {request.admin_notes && (
+            <TabsTrigger value="notes">Admin Notes</TabsTrigger>
+          )}
+        </TabsList>
+
+        <TabsContent value="details" className="mt-6 space-y-6">
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Basic Information */}
@@ -242,9 +271,11 @@ export default function RequestDetailPage() {
         )}
       </div>
 
-      {/* Form Data */}
-      {request.form_data && Object.keys(request.form_data).length > 0 && (
-        <GlassCard>
+        </TabsContent>
+
+        {request.form_data && Object.keys(request.form_data).length > 0 && (
+          <TabsContent value="form-data" className="mt-6">
+            <GlassCard>
           <GlassCardHeader>
             <GlassCardTitle>Form Data</GlassCardTitle>
             <GlassCardDescription>Information collected from the creation form</GlassCardDescription>
@@ -341,7 +372,7 @@ export default function RequestDetailPage() {
                       <summary className="text-xs font-medium text-muted-foreground uppercase tracking-wide cursor-pointer hover:text-foreground">
                         Raw Form Data
                       </summary>
-                      <div className="mt-2 p-4 bg-muted/20 backdrop-blur-sm rounded-lg max-h-64 overflow-auto border border-white/5">
+                      <div className="mt-2 p-4 bg-white/60 backdrop-blur-sm rounded-lg max-h-64 overflow-auto border border-border/50">
                         <pre className="text-xs font-mono whitespace-pre-wrap break-words">
                           {JSON.stringify(request.form_data, null, 2)}
                         </pre>
@@ -352,11 +383,12 @@ export default function RequestDetailPage() {
             </div>
           </GlassCardContent>
         </GlassCard>
-      )}
+          </TabsContent>
+        )}
 
-      {/* Workflow Configuration */}
-      {request.workflow_config && Object.keys(request.workflow_config).length > 0 && (
-        <GlassCard>
+        {request.workflow_config && Object.keys(request.workflow_config).length > 0 && (
+          <TabsContent value="workflow" className="mt-6">
+            <GlassCard>
           <GlassCardHeader>
             <GlassCardTitle>Workflow Configuration</GlassCardTitle>
             <GlassCardDescription>n8n workflow settings and preferences</GlassCardDescription>
@@ -468,7 +500,7 @@ export default function RequestDetailPage() {
                       <summary className="text-xs font-medium text-muted-foreground uppercase tracking-wide cursor-pointer hover:text-foreground">
                         Raw Configuration
                       </summary>
-                      <div className="mt-2 p-4 bg-muted/20 backdrop-blur-sm rounded-lg max-h-64 overflow-auto border border-white/5">
+                      <div className="mt-2 p-4 bg-white/60 backdrop-blur-sm rounded-lg max-h-64 overflow-auto border border-border/50">
                         <pre className="text-xs font-mono whitespace-pre-wrap break-words">
                           {JSON.stringify(request.workflow_config, null, 2)}
                         </pre>
@@ -479,10 +511,12 @@ export default function RequestDetailPage() {
             </div>
           </GlassCardContent>
         </GlassCard>
-      )}
+          </TabsContent>
+        )}
 
-      {request.admin_notes && (
-        <GlassCard className="border-l-4 border-l-primary">
+        {request.admin_notes && (
+          <TabsContent value="notes" className="mt-6">
+            <GlassCard className="border-l-4 border-l-primary">
           <GlassCardHeader>
             <GlassCardTitle className="flex items-center gap-2">
               <MessageSquare className="h-5 w-5" />
@@ -496,7 +530,9 @@ export default function RequestDetailPage() {
             </div>
           </GlassCardContent>
         </GlassCard>
-      )}
+          </TabsContent>
+        )}
+      </Tabs>
     </div>
   )
 }

@@ -2,6 +2,9 @@
 const nextConfig = {
   reactStrictMode: true,
   
+  // Transpile vaul package for proper module resolution
+  transpilePackages: ['vaul'],
+  
   // Note: Request size limits are handled in API route handlers for Next.js 14 App Router
   // The 'api' config is deprecated in Next.js 14+ App Router
   

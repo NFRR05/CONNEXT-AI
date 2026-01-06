@@ -2,12 +2,13 @@
 
 import { useState, useRef, useEffect } from 'react'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+  Modal,
+  ModalContent,
+  ModalDescription,
+  ModalHeader,
+  ModalTitle,
+  ModalBody,
+} from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -135,11 +136,11 @@ export function LeadDetailsModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+    <Modal open={open} onOpenChange={onOpenChange}>
+      <ModalContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <ModalHeader>
           <div className="flex items-center justify-between">
-            <DialogTitle>Lead Details</DialogTitle>
+            <ModalTitle>Lead Details</ModalTitle>
             <Select
               value={lead.status}
               onValueChange={(value: 'New' | 'Contacted' | 'Closed') => onStatusUpdate(value)}
@@ -156,12 +157,12 @@ export function LeadDetailsModal({
               </SelectContent>
             </Select>
           </div>
-          <DialogDescription>
+          <ModalDescription>
             Call received {formatDistanceToNow(new Date(lead.created_at), { addSuffix: true })}
-          </DialogDescription>
-        </DialogHeader>
+          </ModalDescription>
+        </ModalHeader>
 
-        <div className="space-y-6">
+        <ModalBody className="space-y-6">
           {/* Basic Information */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -347,9 +348,9 @@ export function LeadDetailsModal({
               </div>
             </>
           )}
-        </div>
-      </DialogContent>
-    </Dialog>
+        </ModalBody>
+      </ModalContent>
+    </Modal>
   )
 }
 

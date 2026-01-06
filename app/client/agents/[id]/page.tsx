@@ -5,8 +5,11 @@ import { useParams, useRouter } from 'next/navigation'
 import { GlassCard, GlassCardContent, GlassCardDescription, GlassCardHeader, GlassCardTitle } from '@/components/ui/glass-card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Loader } from '@/components/ui/loader'
+import { LeadsTable, type Lead } from '@/components/ui/leads-data-table'
 import { createClient } from '@/lib/supabase/client'
-import { Phone, MessageSquare, Clock, ArrowLeft, Settings, FileText, Trash2 } from 'lucide-react'
+import { Phone, MessageSquare, Clock, ArrowLeft, Settings, FileText, Trash2, Workflow } from 'lucide-react'
 import Link from 'next/link'
 import { useToast } from '@/hooks/use-toast'
 
@@ -33,6 +36,8 @@ export default function ClientAgentDetailPage() {
   const agentId = params.id as string
   const [agent, setAgent] = useState<Agent | null>(null)
   const [leadStats, setLeadStats] = useState<LeadStats>({ total: 0, recent: 0 })
+  const [leads, setLeads] = useState<Lead[]>([])
+  const [loadingLeads, setLoadingLeads] = useState(false)
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
   const [hasRejectedRequest, setHasRejectedRequest] = useState(false)
@@ -184,8 +189,54 @@ export default function ClientAgentDetailPage() {
     }
   }
 
+  const fetchLeads = async () => {
+    setLoadingLeads(true)
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (!user) return
+
+      const { data, error } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('agent_id', agentId)
+        .order('created_at', { ascending: false })
+        .limit(100)
+
+      if (error) throw error
+
+      const formattedLeads: Lead[] = (data || []).map(lead => ({
+        id: lead.id,
+        customer_phone: lead.customer_phone,
+        call_summary: lead.call_summary,
+        status: lead.status as 'New' | 'Contacted' | 'Closed',
+        created_at: lead.created_at,
+        duration: lead.duration,
+        sentiment: lead.sentiment,
+        agent_id: lead.agent_id,
+        agent_name: agent?.name,
+      }))
+
+      setLeads(formattedLeads)
+    } catch (error) {
+      console.error('Error fetching leads:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to load leads',
+        variant: 'destructive',
+      })
+    } finally {
+      setLoadingLeads(false)
+    }
+  }
+
   if (loading) {
-    return <div className="p-8">Loading agent details...</div>
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader size="lg" />
+      </div>
+    )
   }
 
   if (!agent) {
@@ -219,17 +270,17 @@ export default function ClientAgentDetailPage() {
               </Button>
             </Link>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold">{agent.name}</h1>
-              <p className="text-muted-foreground text-sm sm:text-base">
+              <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">{agent.name}</h1>
+              <p className="text-muted-foreground mt-2 text-sm sm:text-base">
                 Agent details and configuration
               </p>
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Badge variant="default">Active</Badge>
           <Link href={`/client/requests/create?type=update&agent_id=${agent.id}`}>
-            <Button variant="outline" size="sm" className="border-white/10 hover:bg-white/5">
+            <Button variant="outline" size="sm" className="shadow-lg shadow-primary/20">
               <Settings className="mr-2 h-4 w-4" />
               Request Changes
             </Button>
@@ -239,10 +290,11 @@ export default function ClientAgentDetailPage() {
             size="sm"
             onClick={handleDeleteAgent}
             disabled={deleting}
+            className="shadow-lg shadow-destructive/20"
           >
             {deleting ? (
               <>
-                <Clock className="mr-2 h-4 w-4 animate-spin" />
+                <Loader size="sm" className="mr-2" />
                 Deleting...
               </>
             ) : (
@@ -255,168 +307,238 @@ export default function ClientAgentDetailPage() {
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <GlassCard>
-          <GlassCardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <GlassCardTitle className="text-sm font-medium">Total Leads</GlassCardTitle>
-            <MessageSquare className="h-4 w-4 text-muted-foreground" />
-          </GlassCardHeader>
-          <GlassCardContent>
-            <div className="text-2xl font-bold">{leadStats.total}</div>
-            <p className="text-xs text-muted-foreground">
-              All time leads collected
-            </p>
-          </GlassCardContent>
-        </GlassCard>
+      <Tabs defaultValue="overview" className="w-full" onValueChange={(value) => {
+        if (value === 'leads' && leads.length === 0 && !loadingLeads) {
+          fetchLeads()
+        }
+      }}>
+        <TabsList className="w-full justify-start">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="leads">Leads ({leadStats.total})</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
+        </TabsList>
 
-        <GlassCard>
-          <GlassCardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <GlassCardTitle className="text-sm font-medium">Recent Leads</GlassCardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </GlassCardHeader>
-          <GlassCardContent>
-            <div className="text-2xl font-bold">{leadStats.recent}</div>
-            <p className="text-xs text-muted-foreground">
-              Last 7 days
-            </p>
-          </GlassCardContent>
-        </GlassCard>
-      </div>
-
-      {/* Agent Information */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <GlassCard>
-          <GlassCardHeader>
-            <GlassCardTitle>Contact Information</GlassCardTitle>
-            <GlassCardDescription>Phone number and provider</GlassCardDescription>
-          </GlassCardHeader>
-          <GlassCardContent className="space-y-3">
-            {agent.twilio_phone_number ? (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Phone Number:</span>
-                </div>
-                <p className="text-lg font-mono">{agent.twilio_phone_number}</p>
+        <TabsContent value="overview" className="space-y-6 mt-6">
+          {/* Stats Grid */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <GlassCard>
+              <GlassCardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <GlassCardTitle className="text-sm font-medium">Total Leads</GlassCardTitle>
+                <MessageSquare className="h-4 w-4 text-muted-foreground" />
+              </GlassCardHeader>
+              <GlassCardContent>
+                <div className="text-2xl font-bold">{leadStats.total}</div>
                 <p className="text-xs text-muted-foreground">
-                  Customers can call this number to reach your AI agent
+                  All time leads collected
+                </p>
+              </GlassCardContent>
+            </GlassCard>
+
+            <GlassCard>
+              <GlassCardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <GlassCardTitle className="text-sm font-medium">Recent Leads</GlassCardTitle>
+                <Clock className="h-4 w-4 text-muted-foreground" />
+              </GlassCardHeader>
+              <GlassCardContent>
+                <div className="text-2xl font-bold">{leadStats.recent}</div>
+                <p className="text-xs text-muted-foreground">
+                  Last 7 days
+                </p>
+              </GlassCardContent>
+            </GlassCard>
+          </div>
+
+          {/* Agent Information */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <GlassCard>
+              <GlassCardHeader>
+                <GlassCardTitle>Contact Information</GlassCardTitle>
+                <GlassCardDescription>Phone number and provider</GlassCardDescription>
+              </GlassCardHeader>
+              <GlassCardContent className="space-y-3">
+                {agent.twilio_phone_number ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">Phone Number:</span>
+                    </div>
+                    <p className="text-lg font-mono">{agent.twilio_phone_number}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Customers can call this number to reach your AI agent
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">Phone number not configured</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Contact support to configure a phone number for your agent
+                    </p>
+                  </div>
+                )}
+                <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+                  <span className="text-sm font-medium">Provider:</span>
+                  <Badge variant="outline">{agent.provider_type || 'twilio'}</Badge>
+                </div>
+              </GlassCardContent>
+            </GlassCard>
+
+            <GlassCard>
+              <GlassCardHeader>
+                <GlassCardTitle>Voice Settings</GlassCardTitle>
+                <GlassCardDescription>AI voice configuration</GlassCardDescription>
+              </GlassCardHeader>
+              <GlassCardContent className="space-y-3">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">Voice ID:</span>
+                    <Badge variant="outline">{agent.voice_id || 'Default'}</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    The voice your AI agent uses when speaking to customers
+                  </p>
+                </div>
+                <div className="pt-2 border-t border-border/50">
+                  <p className="text-xs text-muted-foreground">
+                    Created: {new Date(agent.created_at).toLocaleDateString()}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Updated: {new Date(agent.updated_at).toLocaleDateString()}
+                  </p>
+                </div>
+              </GlassCardContent>
+            </GlassCard>
+          </div>
+
+          {/* System Prompt */}
+          {agent.system_prompt && (
+            <GlassCard>
+              <GlassCardHeader>
+                <GlassCardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  System Prompt
+                </GlassCardTitle>
+                <GlassCardDescription>Instructions for your AI agent</GlassCardDescription>
+              </GlassCardHeader>
+              <GlassCardContent>
+                <div className="p-4 bg-muted/20 rounded-lg backdrop-blur-sm border border-border/50">
+                  <p className="text-sm whitespace-pre-wrap">{agent.system_prompt}</p>
+                </div>
+              </GlassCardContent>
+            </GlassCard>
+          )}
+
+          {/* Rejected Request Notice */}
+          {hasRejectedRequest && (
+            <GlassCard className="border-destructive/50 bg-destructive/5">
+              <GlassCardHeader>
+                <GlassCardTitle className="text-destructive">Request Denied</GlassCardTitle>
+                <GlassCardDescription>
+                  Your previous request for this agent was denied. You can delete the agent directly below.
+                </GlassCardDescription>
+              </GlassCardHeader>
+            </GlassCard>
+          )}
+
+          {/* Quick Actions */}
+          <GlassCard>
+            <GlassCardHeader>
+              <GlassCardTitle>Quick Actions</GlassCardTitle>
+              <GlassCardDescription>Common tasks for this agent</GlassCardDescription>
+            </GlassCardHeader>
+            <GlassCardContent className="space-y-2">
+              <Link href={`/client/leads?agent_id=${agent.id}`}>
+                <Button variant="outline" className="w-full justify-start">
+                  <MessageSquare className="mr-2 h-4 w-4" />
+                  View All Leads
+                </Button>
+              </Link>
+              <Link href={`/client/requests/create?type=update&agent_id=${agent.id}`}>
+                <Button variant="outline" className="w-full justify-start">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Request Changes to Agent
+                </Button>
+              </Link>
+              <Button
+                variant="destructive"
+                className="w-full justify-start"
+                onClick={handleDeleteAgent}
+                disabled={deleting}
+              >
+                {deleting ? (
+                  <>
+                    <Loader size="sm" className="mr-2" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Agent
+                  </>
+                )}
+              </Button>
+            </GlassCardContent>
+          </GlassCard>
+        </TabsContent>
+
+        <TabsContent value="leads" className="mt-6">
+          {loadingLeads ? (
+            <div className="flex items-center justify-center min-h-[400px]">
+              <Loader size="lg" />
+            </div>
+          ) : (
+            <LeadsTable
+              title={`Leads for ${agent.name}`}
+              leads={leads}
+              onLeadAction={(leadId, action) => {
+                if (action === "view") {
+                  router.push(`/client/leads/${leadId}`)
+                }
+              }}
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent value="settings" className="mt-6">
+          <GlassCard>
+            <GlassCardHeader>
+              <GlassCardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                Agent Settings
+              </GlassCardTitle>
+              <GlassCardDescription>Configure your agent settings</GlassCardDescription>
+            </GlassCardHeader>
+            <GlassCardContent className="space-y-4">
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Agent ID</p>
+                <p className="text-xs font-mono text-muted-foreground">{agent.id}</p>
+              </div>
+              <div className="pt-2 border-t border-border/50 space-y-2">
+                <p className="text-sm font-medium">Created</p>
+                <p className="text-xs text-muted-foreground">
+                  {new Date(agent.created_at).toLocaleString()}
                 </p>
               </div>
-            ) : (
               <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Phone number not configured</span>
-                </div>
+                <p className="text-sm font-medium">Last Updated</p>
                 <p className="text-xs text-muted-foreground">
-                  Contact support to configure a phone number for your agent
+                  {new Date(agent.updated_at).toLocaleString()}
                 </p>
               </div>
-            )}
-            <div className="flex items-center gap-2 pt-2 border-t border-white/5">
-              <span className="text-sm font-medium">Provider:</span>
-              <Badge variant="outline">{agent.provider_type || 'twilio'}</Badge>
-            </div>
-          </GlassCardContent>
-        </GlassCard>
-
-        <GlassCard>
-          <GlassCardHeader>
-            <GlassCardTitle>Voice Settings</GlassCardTitle>
-            <GlassCardDescription>AI voice configuration</GlassCardDescription>
-          </GlassCardHeader>
-          <GlassCardContent className="space-y-3">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">Voice ID:</span>
-                <Badge variant="outline">{agent.voice_id || 'Default'}</Badge>
+              <div className="pt-4 border-t border-border/50">
+                <Link href={`/client/requests/create?type=update&agent_id=${agent.id}`}>
+                  <Button variant="outline" className="w-full">
+                    <Settings className="mr-2 h-4 w-4" />
+                    Request Changes
+                  </Button>
+                </Link>
               </div>
-              <p className="text-xs text-muted-foreground">
-                The voice your AI agent uses when speaking to customers
-              </p>
-            </div>
-            <div className="pt-2 border-t border-white/5">
-              <p className="text-xs text-muted-foreground">
-                Created: {new Date(agent.created_at).toLocaleDateString()}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Updated: {new Date(agent.updated_at).toLocaleDateString()}
-              </p>
-            </div>
-          </GlassCardContent>
-        </GlassCard>
-      </div>
-
-      {/* System Prompt */}
-      {agent.system_prompt && (
-        <GlassCard>
-          <GlassCardHeader>
-            <GlassCardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              System Prompt
-            </GlassCardTitle>
-            <GlassCardDescription>Instructions for your AI agent</GlassCardDescription>
-          </GlassCardHeader>
-          <GlassCardContent>
-            <div className="p-4 bg-muted/20 rounded-lg backdrop-blur-sm">
-              <p className="text-sm whitespace-pre-wrap">{agent.system_prompt}</p>
-            </div>
-          </GlassCardContent>
-        </GlassCard>
-      )}
-
-      {/* Rejected Request Notice */}
-      {hasRejectedRequest && (
-        <GlassCard className="border-destructive/50 bg-destructive/5">
-          <GlassCardHeader>
-            <GlassCardTitle className="text-destructive">Request Denied</GlassCardTitle>
-            <GlassCardDescription>
-              Your previous request for this agent was denied. You can delete the agent directly below.
-            </GlassCardDescription>
-          </GlassCardHeader>
-        </GlassCard>
-      )}
-
-      {/* Quick Actions */}
-      <GlassCard>
-        <GlassCardHeader>
-          <GlassCardTitle>Quick Actions</GlassCardTitle>
-          <GlassCardDescription>Common tasks for this agent</GlassCardDescription>
-        </GlassCardHeader>
-        <GlassCardContent className="space-y-2">
-          <Link href={`/client/leads?agent_id=${agent.id}`}>
-            <Button variant="outline" className="w-full justify-start border-white/10 hover:bg-white/5 hover:text-primary">
-              <MessageSquare className="mr-2 h-4 w-4" />
-              View All Leads
-            </Button>
-          </Link>
-          <Link href={`/client/requests/create?type=update&agent_id=${agent.id}`}>
-            <Button variant="outline" className="w-full justify-start border-white/10 hover:bg-white/5 hover:text-primary">
-              <Settings className="mr-2 h-4 w-4" />
-              Request Changes to Agent
-            </Button>
-          </Link>
-          <Button
-            variant="destructive"
-            className="w-full justify-start"
-            onClick={handleDeleteAgent}
-            disabled={deleting}
-          >
-            {deleting ? (
-              <>
-                <Clock className="mr-2 h-4 w-4 animate-spin" />
-                Deleting...
-              </>
-            ) : (
-              <>
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete Agent
-              </>
-            )}
-          </Button>
-        </GlassCardContent>
-      </GlassCard>
+            </GlassCardContent>
+          </GlassCard>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

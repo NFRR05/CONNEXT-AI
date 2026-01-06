@@ -61,10 +61,25 @@ export async function signInWithEmail(formData: FormData) {
     await serviceSupabase.rpc('reset_failed_login', {
       p_user_id: signInData.user.id,
     })
+
+    // Get user role to redirect to correct dashboard
+    const { data: profile } = await serviceSupabase
+      .from('profiles')
+      .select('role')
+      .eq('id', signInData.user.id)
+      .single()
+
+    const userRole = profile?.role || 'client'
+    const dashboardPath = (userRole === 'admin' || userRole === 'support') 
+      ? '/admin/dashboard' 
+      : '/client/dashboard'
+
+    revalidatePath('/', 'layout')
+    redirect(dashboardPath)
   }
 
   revalidatePath('/', 'layout')
-  redirect('/agents')
+  redirect('/client/dashboard')
 }
 
 export async function signUpWithEmail(formData: FormData) {

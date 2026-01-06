@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -323,7 +324,30 @@ export default function CreateAgentPage() {
 
   function handleModalClose() {
     setSetupModalOpen(false)
-    router.push('/agents')
+    // Redirect based on user role
+    const redirectToAgents = async () => {
+      try {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id)
+            .single()
+          const userRole = profile?.role || 'client'
+          const agentsPath = (userRole === 'admin' || userRole === 'support') 
+            ? '/admin/agents' 
+            : '/client/agents'
+          router.push(agentsPath)
+        } else {
+          router.push('/client/agents')
+        }
+      } catch (error) {
+        router.push('/client/agents')
+      }
+    }
+    redirectToAgents()
   }
 
   function renderStep() {
@@ -748,10 +772,36 @@ export default function CreateAgentPage() {
     }
   }
 
+  const [agentsPath, setAgentsPath] = useState('/client/agents')
+
+  useEffect(() => {
+    const fetchUserRole = async () => {
+      try {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id)
+            .single()
+          const userRole = profile?.role || 'client'
+          const path = (userRole === 'admin' || userRole === 'support') 
+            ? '/admin/agents' 
+            : '/client/agents'
+          setAgentsPath(path)
+        }
+      } catch (error) {
+        console.error('Error fetching user role:', error)
+      }
+    }
+    fetchUserRole()
+  }, [])
+
   return (
     <div className="container mx-auto py-4 sm:py-6 md:py-10 px-4 sm:px-6 max-w-3xl">
       <div className="mb-4 sm:mb-6">
-        <Link href="/agents">
+        <Link href={agentsPath}>
           <Button variant="ghost" className="mb-3 sm:mb-4 -ml-2 sm:ml-0">
             <ArrowLeft className="h-4 w-4 mr-2" />
             <span className="hidden sm:inline">Back to Agents</span>

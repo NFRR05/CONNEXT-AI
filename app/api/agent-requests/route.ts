@@ -182,6 +182,7 @@ export async function POST(request: NextRequest) {
         description: sanitizedDescription,
         system_prompt: sanitizedSystemPrompt,
         voice_id: requestData.voice_id || null,
+        priority: (body as any).priority || 'normal',
         form_data: requestData.form_data || {},
         workflow_config: requestData.workflow_config || {},
       })

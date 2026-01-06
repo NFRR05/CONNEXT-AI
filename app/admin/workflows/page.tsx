@@ -95,10 +95,10 @@ export default function AdminWorkflowsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold">Agents & Workflows</h1>
-        <p className="text-muted-foreground mt-1 text-sm sm:text-base">
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Agents & Workflows</h1>
+        <p className="text-muted-foreground mt-2 text-sm sm:text-base">
           Manage all agents and their n8n workflows
         </p>
       </div>
@@ -140,7 +140,7 @@ export default function AdminWorkflowsPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="w-full border-white/10 hover:bg-white/5 hover:text-primary"
+                        className="w-full"
                       >
                         <Eye className="mr-2 h-4 w-4" />
                         View Details

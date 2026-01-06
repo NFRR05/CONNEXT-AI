@@ -1,12 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { GlassCard, GlassCardContent, GlassCardDescription, GlassCardHeader, GlassCardTitle } from '@/components/ui/glass-card'
-import { Button } from '@/components/ui/button'
 import { StatsCardsWithLinks, type StatsCardWithLinkData } from '@/components/ui/stats-cards-with-links'
+import { SystemStatusCard, type SystemStatusItem } from '@/components/ui/system-status-card'
+import { QuickActionCard, type ActionItem } from '@/components/ui/quick-action-card'
+import { Loader } from '@/components/ui/loader'
 import { createClient } from '@/lib/supabase/client'
-import { Users, MessageSquare, Clock, CheckCircle, AlertCircle } from 'lucide-react'
-import Link from 'next/link'
+import { MessageSquare, Clock, CheckCircle } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 interface AdminStats {
   totalClients: number
@@ -18,6 +19,7 @@ interface AdminStats {
 }
 
 export default function AdminDashboard() {
+  const router = useRouter()
   const [stats, setStats] = useState<AdminStats>({
     totalClients: 0,
     totalAgents: 0,
@@ -86,14 +88,18 @@ export default function AdminDashboard() {
   }
 
   if (loading) {
-    return <div className="p-8">Loading dashboard...</div>
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader size="lg" />
+      </div>
+    )
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold">Admin Dashboard</h1>
-        <p className="text-muted-foreground mt-1 text-sm sm:text-base">
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Admin Dashboard</h1>
+        <p className="text-muted-foreground mt-2 text-sm sm:text-base">
           System overview and management
         </p>
       </div>
@@ -146,57 +152,50 @@ export default function AdminDashboard() {
         ]}
       />
 
-      {/* Quick Actions */}
+      {/* Quick Actions & System Status */}
       <div className="grid gap-4 sm:grid-cols-2">
-        <GlassCard>
-          <GlassCardHeader>
-            <GlassCardTitle>Quick Actions</GlassCardTitle>
-            <GlassCardDescription>Common admin tasks</GlassCardDescription>
-          </GlassCardHeader>
-          <GlassCardContent className="space-y-2">
-            <Link href="/admin/requests">
-              <Button variant="outline" className="w-full justify-start border-white/10 hover:bg-white/5 hover:text-primary">
-                <Clock className="mr-2 h-4 w-4 text-black" />
-                Review Requests
-              </Button>
-            </Link>
-            <Link href="/admin/agents">
-              <Button variant="outline" className="w-full justify-start border-white/10 hover:bg-white/5 hover:text-primary">
-                <MessageSquare className="mr-2 h-4 w-4 text-black" />
-                Manage Agents
-              </Button>
-            </Link>
-            <Link href="/admin/workflows">
-              <Button variant="outline" className="w-full justify-start border-white/10 hover:bg-white/5 hover:text-primary">
-                <CheckCircle className="mr-2 h-4 w-4 text-black" />
-                n8n Workflows
-              </Button>
-            </Link>
-          </GlassCardContent>
-        </GlassCard>
+        <QuickActionCard
+          title="Quick Actions"
+          subtitle="Common admin tasks"
+          actions={[
+            {
+              icon: <Clock className="h-full w-full" />,
+              label: 'Requests',
+              href: '/admin/requests',
+            },
+            {
+              icon: <MessageSquare className="h-full w-full" />,
+              label: 'Agents',
+              href: '/admin/agents',
+            },
+            {
+              icon: <CheckCircle className="h-full w-full" />,
+              label: 'Workflows',
+              href: '/admin/workflows',
+            },
+          ]}
+          columns={3}
+        />
 
-        <GlassCard>
-          <GlassCardHeader>
-            <GlassCardTitle>System Status</GlassCardTitle>
-            <GlassCardDescription>Current system health</GlassCardDescription>
-          </GlassCardHeader>
-          <GlassCardContent>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between p-2 rounded hover:bg-white/5">
-                <span className="text-muted-foreground">n8n Status:</span>
-                <span className="font-medium text-green-500">Online</span>
-              </div>
-              <div className="flex justify-between p-2 rounded hover:bg-white/5">
-                <span className="text-muted-foreground">Database:</span>
-                <span className="font-medium text-green-500">Healthy</span>
-              </div>
-              <div className="flex justify-between p-2 rounded hover:bg-white/5">
-                <span className="text-muted-foreground">API:</span>
-                <span className="font-medium text-green-500">Operational</span>
-              </div>
-            </div>
-          </GlassCardContent>
-        </GlassCard>
+        <SystemStatusCard
+          items={[
+            {
+              label: 'n8n Status',
+              status: 'online',
+              customLabel: 'Online',
+            },
+            {
+              label: 'Database',
+              status: 'online',
+              customLabel: 'Healthy',
+            },
+            {
+              label: 'API',
+              status: 'online',
+              customLabel: 'Operational',
+            },
+          ]}
+        />
       </div>
     </div>
   )

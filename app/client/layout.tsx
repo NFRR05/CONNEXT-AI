@@ -1,4 +1,5 @@
-import { Sidebar } from '@/components/sidebar'
+import { AppSidebar } from '@/components/sidebar'
+import { InfiniteGrid } from '@/components/ui/infinite-grid-integration'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
@@ -23,10 +24,16 @@ export default async function ClientLayout({
 
   const userRole = profile?.role || 'client'
 
+  // Redirect admin/support users to admin dashboard
+  if (userRole === 'admin' || userRole === 'support') {
+    redirect('/admin/dashboard')
+  }
+
   return (
-    <div className="min-h-screen bg-background text-foreground flex">
-      <Sidebar />
-      <main className="flex-1 ml-64 min-h-screen transition-all duration-300 ease-in-out p-8">
+    <div className="min-h-screen bg-background text-foreground flex relative">
+      <InfiniteGrid />
+      <AppSidebar initialRole={userRole as 'client' | 'admin' | 'support'} />
+      <main className="flex-1 ml-0 md:ml-[80px] lg:ml-[80px] min-h-screen transition-all duration-300 ease-in-out p-4 sm:p-6 lg:p-8 relative z-10">
         {children}
       </main>
     </div>

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { GlassCard, GlassCardContent, GlassCardDescription, GlassCardHeader, GlassCardTitle } from '@/components/ui/glass-card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Loader } from '@/components/ui/loader'
 import { createClient } from '@/lib/supabase/client'
 import { Workflow, CheckCircle, XCircle, RefreshCw, Eye, Phone } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
@@ -91,14 +92,18 @@ export default function AdminAgentsPage() {
   const agentsWithoutWorkflows = agents.filter(a => !a.n8n_workflow_id)
 
   if (loading) {
-    return <div className="p-8">Loading agents...</div>
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader size="lg" />
+      </div>
+    )
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold">Agents & Workflows</h1>
-        <p className="text-muted-foreground mt-1 text-sm sm:text-base">
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Agents & Workflows</h1>
+        <p className="text-muted-foreground mt-2 text-sm sm:text-base">
           Manage all agents and their n8n workflows
         </p>
       </div>
@@ -147,7 +152,7 @@ export default function AdminAgentsPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="w-full border-white/10 hover:bg-white/5 hover:text-primary"
+                        className="w-full"
                       >
                         <Eye className="mr-2 h-4 w-4" />
                         View Details
@@ -156,7 +161,7 @@ export default function AdminAgentsPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="w-full border-white/10 hover:bg-white/5 hover:text-primary"
+                      className="w-full"
                       onClick={() => agent.n8n_workflow_id && syncWorkflow(agent.id, agent.n8n_workflow_id)}
                       disabled={syncing === agent.id}
                     >
@@ -210,7 +215,7 @@ export default function AdminAgentsPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="w-full border-white/10 hover:bg-white/5 hover:text-primary"
+                        className="w-full"
                       >
                         <Eye className="mr-2 h-4 w-4" />
                         View Details
