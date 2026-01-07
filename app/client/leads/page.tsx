@@ -1,101 +1,132 @@
-'use client'
+'use client';
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { LeadsTable, type Lead } from '@/components/ui/leads-data-table'
-import { createClient } from '@/lib/supabase/client'
+import * as React from 'react';
+import {
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+  SortingState,
+  ColumnFiltersState,
+  VisibilityState,
+} from '@tanstack/react-table';
+import { createClient } from '@/lib/supabase/client';
+import {
+  DataGrid,
+  DataGridPagination,
+  DataGridTable,
+  DataGridContainer,
+  DataGridColumnVisibility,
+} from '@/components/ui/data-grid';
+import { columns, Lead } from './columns';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { SlidersHorizontal } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 
 export default function ClientLeadsPage() {
-  const router = useRouter()
-  const [leads, setLeads] = useState<Lead[]>([])
-  const [loading, setLoading] = useState(true)
+  const router = useRouter();
+  const [data, setData] = React.useState<Lead[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
+  const [rowSelection, setRowSelection] = React.useState({});
 
-  useEffect(() => {
-    fetchLeads()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  const supabase = createClient();
 
-  const fetchLeads = async () => {
-    try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+  React.useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      if (!user) return
+        if (!user) {
+          router.push('/login');
+          return;
+        }
 
-      // Get user's agents
-      const { data: agents } = await supabase
-        .from('agents')
-        .select('id')
-        .eq('user_id', user.id)
+        // Fetch leads for the user's agents
+        // We use inner join to filter leads belonging to agents owned by the user
+        const { data: leads, error } = await supabase
+          .from('leads')
+          .select('*, agents!inner(user_id)')
+          .eq('agents.user_id', user.id)
+          .order('created_at', { ascending: false });
 
-      if (!agents || agents.length === 0) {
-        setLeads([])
-        return
+        if (error) {
+          console.error('Error fetching leads:', error);
+        } else {
+          setData(leads as any[] || []);
+        }
+      } catch (error) {
+        console.error('Error in leads fetch:', error);
+      } finally {
+        setLoading(false);
       }
+    };
 
-      const agentIds = agents.map(a => a.id)
+    fetchData();
+  }, [router, supabase]);
 
-      const { data, error } = await supabase
-        .from('leads')
-        .select(`
-          *,
-          agents:agent_id (
-            name
-          )
-        `)
-        .in('agent_id', agentIds)
-        .order('created_at', { ascending: false })
-        .limit(50)
-
-      if (error) throw error
-      
-      // Map the data to include agent_name
-      const mappedLeads = (data || []).map((lead: any) => ({
-        ...lead,
-        agent_name: lead.agents?.name || 'Unknown Agent'
-      }))
-      
-      setLeads(mappedLeads)
-    } catch (error) {
-      console.error('Error fetching leads:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="space-y-6 max-w-7xl mx-auto">
-        <div>
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Leads</h1>
-          <p className="text-muted-foreground mt-2 text-sm sm:text-base">
-            View all leads from your agents
-          </p>
-        </div>
-        <div className="p-8 text-center text-muted-foreground">Loading leads...</div>
-      </div>
-    )
-  }
+  const table = useReactTable({
+    data,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    onSortingChange: setSorting,
+    getSortedRowModel: getSortedRowModel(),
+    onColumnFiltersChange: setColumnFilters,
+    getFilteredRowModel: getFilteredRowModel(),
+    onColumnVisibilityChange: setColumnVisibility,
+    onRowSelectionChange: setRowSelection,
+    state: {
+      sorting,
+      columnFilters,
+      columnVisibility,
+      rowSelection,
+    },
+    initialState: {
+      pagination: {
+        pageSize: 10,
+      },
+    },
+  });
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      <div>
-        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Leads</h1>
-        <p className="text-muted-foreground mt-2 text-sm sm:text-base">
-          View all leads from your agents
-        </p>
+    <div className="flex flex-col h-full space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Leads</h1>
       </div>
 
-      <LeadsTable
-        title="Leads"
-        leads={leads}
-        onLeadAction={(leadId, action) => {
-          if (action === "view") {
-            router.push(`/client/leads/${leadId}`)
+      <div className="flex flex-col sm:flex-row items-start sm:items-center py-4 gap-2">
+        <Input
+          placeholder="Filter by phone..."
+          value={(table.getColumn("customer_phone")?.getFilterValue() as string) ?? ""}
+          onChange={(event) =>
+            table.getColumn("customer_phone")?.setFilterValue(event.target.value)
           }
-        }}
-      />
-    </div>
-  )
-}
+          className="w-full sm:max-w-sm"
+        />
+        <div className="flex items-center gap-2 ml-auto">
+          <DataGridColumnVisibility table={table} trigger={
+            <Button variant="outline" size="sm" className="hidden h-8 lg:flex">
+              <SlidersHorizontal className="mr-2 h-4 w-4" />
+              View
+            </Button>
+          } />
+        </div>
+      </div>
 
+      <DataGridContainer>
+        <DataGrid table={table} recordCount={data.length} isLoading={loading}>
+          <DataGridTable />
+          <DataGridPagination />
+        </DataGrid>
+      </DataGridContainer>
+    </div>
+  );
+}

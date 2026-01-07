@@ -1,294 +1,138 @@
-'use client'
+﻿'use client';
 
-import { useEffect, useState } from 'react'
-import { RequestsList, type RequestItem } from '@/components/ui/requests-list'
-import { RequestReviewModal } from '@/components/ui/request-review-modal'
-import { createClient } from '@/lib/supabase/client'
-import { useToast } from '@/hooks/use-toast'
-
-interface AgentRequest extends RequestItem {
-  user_id: string
-  form_data: any
-  workflow_config: any
-  profiles: {
-    email: string | null
-  } | null
-}
+import * as React from 'react';
+import {
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+  SortingState,
+  ColumnFiltersState,
+  VisibilityState,
+} from '@tanstack/react-table';
+import { createClient } from '@/lib/supabase/client';
+import {
+  DataGrid,
+  DataGridPagination,
+  DataGridTable,
+  DataGridContainer,
+  DataGridColumnVisibility,
+} from '@/components/ui/data-grid';
+import { columns, AgentRequest } from './columns';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { SlidersHorizontal } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 
 export default function AdminRequestsPage() {
-  const [requests, setRequests] = useState<AgentRequest[]>([])
-  const [loading, setLoading] = useState(true)
-  const [selectedRequest, setSelectedRequest] = useState<AgentRequest | null>(null)
-  const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const [adminNotes, setAdminNotes] = useState('')
-  const [showWorkflowPreview, setShowWorkflowPreview] = useState(false)
-  const [workflowPreview, setWorkflowPreview] = useState<any>(null)
-  const [loadingPreview, setLoadingPreview] = useState(false)
-  const { toast } = useToast()
+  const router = useRouter();
+  const [data, setData] = React.useState<AgentRequest[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
+  const [rowSelection, setRowSelection] = React.useState({});
 
-  const fetchRequests = async () => {
-    try {
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from('agent_requests')
-        .select(`
-          *,
-          profiles:user_id (
-            email
-          )
-        `)
-        .order('created_at', { ascending: false })
+  const supabase = createClient();
 
-      if (error) throw error
-      setRequests(data || [])
-    } catch (error) {
-      console.error('Error fetching requests:', error)
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch requests',
-        variant: 'destructive',
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
+  React.useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-  useEffect(() => {
-    fetchRequests()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const handleApprove = async (requestId: string) => {
-    setActionLoading(requestId)
-    try {
-      const response = await fetch(`/api/agent-requests/${requestId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          status: 'approved',
-          admin_notes: adminNotes || null,
-        }),
-      })
-
-      if (!response.ok) {
-        let error
-        try {
-          error = await response.json()
-        } catch (e) {
-          error = { error: `HTTP ${response.status}: ${response.statusText}` }
-        }
-        // Build detailed error message
-        let errorMessage = error.error || 'Failed to approve request'
-        if (error.details) {
-          errorMessage += `: ${error.details}`
+        if (!user) {
+          router.push('/login');
+          return;
         }
 
-        // Log full error for debugging
-        console.error('Approve request error - Full details:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: error,
-          errorString: JSON.stringify(error, null, 2),
-        })
+        // Fetch ALL request for admin
+        const { data: requests, error } = await supabase
+          .from('agent_requests')
+          .select('*')
+          .order('created_at', { ascending: false });
 
-        // Show the actual error details in the toast
-        const toastMessage = error.details || error.error || 'Failed to approve request'
-
-        throw new Error(toastMessage)
+        if (error) {
+          console.error('Error fetching requests:', error);
+        } else {
+          setData(requests as any[] || []);
+        }
+      } catch (error) {
+        console.error('Error in requests fetch:', error);
+      } finally {
+        setLoading(false);
       }
+    };
 
-      toast({
-        title: 'Request approved',
-        description: 'The agent request has been approved and will be processed.',
-      })
+    fetchData();
+  }, [router, supabase]);
 
-      handleCloseModal()
-      fetchRequests()
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to approve request',
-        variant: 'destructive',
-      })
-    } finally {
-      setActionLoading(null)
-    }
-  }
-
-  const handleReject = async (requestId: string) => {
-    setActionLoading(requestId)
-    try {
-      const response = await fetch(`/api/agent-requests/${requestId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          status: 'rejected',
-          admin_notes: adminNotes || null,
-        }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to reject request')
-      }
-
-      toast({
-        title: 'Request rejected',
-        description: 'The request has been rejected.',
-      })
-
-      handleCloseModal()
-      fetchRequests()
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to reject request',
-        variant: 'destructive',
-      })
-    } finally {
-      setActionLoading(null)
-    }
-  }
-
-  const getRequestTypeLabel = (type: string) => {
-    const labels: Record<string, string> = {
-      create: 'Create Agent',
-      update: 'Update Agent',
-      delete: 'Delete Agent',
-    }
-    return labels[type] || type
-  }
-
-  const handleReviewRequest = (id: string) => {
-    const request = requests.find(r => r.id === id)
-    if (request) {
-      setSelectedRequest(request as AgentRequest)
-    }
-  }
-
-  const loadWorkflowPreview = async (requestId: string) => {
-    if (workflowPreview && selectedRequest?.id === requestId) {
-      setShowWorkflowPreview(!showWorkflowPreview)
-      return
-    }
-
-    setLoadingPreview(true)
-    try {
-      const response = await fetch(`/api/admin/agent-requests/${requestId}/blueprint`)
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to generate preview')
-      }
-
-      const data = await response.json()
-      setWorkflowPreview(data.blueprint)
-      setShowWorkflowPreview(true)
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to load workflow preview',
-        variant: 'destructive',
-      })
-    } finally {
-      setLoadingPreview(false)
-    }
-  }
-
-  const handleToggleWorkflowPreview = () => {
-    if (selectedRequest) {
-      loadWorkflowPreview(selectedRequest.id)
-    }
-  }
-
-  const handleCloseModal = () => {
-    setSelectedRequest(null)
-    setAdminNotes('')
-    setShowWorkflowPreview(false)
-    setWorkflowPreview(null)
-  }
-
-  const pendingRequests = requests.filter(r => r.status === 'pending').map(r => ({
-    ...r,
-    user_email: (r as AgentRequest).profiles?.email || null
-  }))
-  const otherRequests = requests.filter(r => r.status !== 'pending').map(r => ({
-    ...r,
-    user_email: (r as AgentRequest).profiles?.email || null
-  }))
-
-  if (loading) {
-    return <div className="p-8">Loading requests...</div>
-  }
+  const table = useReactTable({
+    data,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    onSortingChange: setSorting,
+    getSortedRowModel: getSortedRowModel(),
+    onColumnFiltersChange: setColumnFilters,
+    getFilteredRowModel: getFilteredRowModel(),
+    onColumnVisibilityChange: setColumnVisibility,
+    onRowSelectionChange: setRowSelection,
+    state: {
+      sorting,
+      columnFilters,
+      columnVisibility,
+      rowSelection,
+    },
+    initialState: {
+      pagination: {
+        pageSize: 10,
+      },
+    },
+  });
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      <div>
-        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Agent Requests</h1>
-        <p className="text-muted-foreground mt-2 text-sm sm:text-base">
-          Review and manage agent creation and modification requests
-        </p>
+    <div className="flex flex-col h-full space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">All Requests</h1>
       </div>
 
-      {/* Pending Requests */}
-      {pendingRequests.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold">Pending Requests ({pendingRequests.length})</h2>
-          <RequestsList
-            requests={pendingRequests}
-            onReviewRequest={handleReviewRequest}
-            showUserEmail={true}
-          />
-        </div>
-      )}
-
-      {/* Other Requests */}
-      {otherRequests.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold">Other Requests</h2>
-          <RequestsList
-            requests={otherRequests}
-            showUserEmail={true}
-          />
-        </div>
-      )}
-
-      {/* Empty State */}
-      {pendingRequests.length === 0 && otherRequests.length === 0 && (
-        <RequestsList
-          requests={[]}
-          showUserEmail={true}
-          emptyStateTitle="No requests found"
-          emptyStateDescription="There are no agent requests to review at this time"
-        />
-      )}
-
-      {/* Review Modal */}
-      <RequestReviewModal
-        open={!!selectedRequest}
-        onOpenChange={(open) => {
-          if (!open) {
-            handleCloseModal()
+      <div className="flex flex-col sm:flex-row items-start sm:items-center py-4 gap-2">
+        <Input
+          placeholder="Filter by name..."
+          value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
+          onChange={(event) =>
+            table.getColumn("name")?.setFilterValue(event.target.value)
           }
-        }}
-        request={selectedRequest}
-        adminNotes={adminNotes}
-        onAdminNotesChange={setAdminNotes}
-        onApprove={() => selectedRequest && handleApprove(selectedRequest.id)}
-        onReject={() => selectedRequest && handleReject(selectedRequest.id)}
-        onCancel={handleCloseModal}
-        actionLoading={actionLoading === selectedRequest?.id}
-        showWorkflowPreview={showWorkflowPreview}
-        workflowPreview={workflowPreview}
-        loadingPreview={loadingPreview}
-        onToggleWorkflowPreview={handleToggleWorkflowPreview}
-        getRequestTypeLabel={getRequestTypeLabel}
-      />
+          className="w-full sm:max-w-sm"
+        />
+        <Input
+          placeholder="Filter by User ID..."
+          value={(table.getColumn("user_id")?.getFilterValue() as string) ?? ""}
+          onChange={(event) =>
+            table.getColumn("user_id")?.setFilterValue(event.target.value)
+          }
+          className="w-full sm:max-w-sm"
+        />
+        <div className="flex items-center gap-2 ml-auto">
+          <DataGridColumnVisibility table={table} trigger={
+            <Button variant="outline" size="sm" className="hidden h-8 lg:flex">
+              <SlidersHorizontal className="mr-2 h-4 w-4" />
+              View
+            </Button>
+          } />
+        </div>
+      </div>
+
+      <DataGridContainer>
+        <DataGrid table={table} recordCount={data.length} isLoading={loading}>
+          <DataGridTable />
+          <DataGridPagination />
+        </DataGrid>
+      </DataGridContainer>
     </div>
-  )
+  );
 }

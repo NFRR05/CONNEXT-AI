@@ -1,5 +1,7 @@
+"use client"
+
 import { Sidebar } from '@/components/sidebar'
-import { InfiniteGrid } from '@/components/ui/infinite-grid-integration'
+import InfiniteGrid from '@/components/ui/infinite-grid-integration'
 
 export default function DashboardLayout({
   children,

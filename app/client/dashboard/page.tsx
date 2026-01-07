@@ -1,171 +1,102 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
-import { StatsCardsWithLinks, type StatsCardWithLinkData } from '@/components/ui/stats-cards-with-links'
-import { QuickActionCard, type ActionItem } from '@/components/ui/quick-action-card'
-import { Button } from '@/components/ui/button'
-import { Loader } from '@/components/ui/loader'
-import { createClient } from '@/lib/supabase/client'
-import { MessageSquare, Clock, CheckCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-
-interface DashboardStats {
-  activeAgents: number
-  pendingRequests: number
-  totalLeads: number
-  recentLeads: number
-}
+import { createClient } from '@/lib/supabase/client'
+import { StatsCards } from '@/components/ui/stats-cards'
+import { Loader2 } from 'lucide-react'
 
 export default function ClientDashboard() {
   const router = useRouter()
-  const [stats, setStats] = useState<DashboardStats>({
-    activeAgents: 0,
-    pendingRequests: 0,
-    totalLeads: 0,
-    recentLeads: 0,
-  })
   const [loading, setLoading] = useState(true)
+  const [stats, setStats] = useState({
+    agents: 0,
+    leads: 0,
+    requests: 0,
+  })
 
   useEffect(() => {
-    fetchDashboardData()
-  }, [])
+    const fetchData = async () => {
+      try {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
 
-  const fetchDashboardData = async () => {
-    try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          router.push('/login')
+          return
+        }
 
-      if (!user) return
+        // Fetch user's agents count
+        const { count: agentsCount } = await supabase
+          .from('agents')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
 
-      // Fetch active agents
-      const { count: agentsCount } = await supabase
-        .from('agents')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
+        // Fetch user's leads count
+        const { count: leadsCount } = await supabase
+          .from('leads')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
 
-      // Fetch pending requests
-      const { count: requestsCount } = await supabase
-        .from('agent_requests')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('status', 'pending')
+        // Fetch user's requests count
+        const { count: requestsCount } = await supabase
+          .from('agent_requests')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
 
-      // Fetch total leads
-      const { count: leadsCount } = await supabase
-        .from('leads')
-        .select('*', { count: 'exact', head: true })
-        .in('agent_id',
-          (await supabase.from('agents').select('id').eq('user_id', user.id)).data?.map(a => a.id) || []
-        )
-
-      // Fetch recent leads (last 7 days)
-      const sevenDaysAgo = new Date()
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-
-      const { count: recentLeadsCount } = await supabase
-        .from('leads')
-        .select('*', { count: 'exact', head: true })
-        .in('agent_id',
-          (await supabase.from('agents').select('id').eq('user_id', user.id)).data?.map(a => a.id) || []
-        )
-        .gte('created_at', sevenDaysAgo.toISOString())
-
-      setStats({
-        activeAgents: agentsCount || 0,
-        pendingRequests: requestsCount || 0,
-        totalLeads: leadsCount || 0,
-        recentLeads: recentLeadsCount || 0,
-      })
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error)
-    } finally {
-      setLoading(false)
+        setStats({
+          agents: agentsCount || 0,
+          leads: leadsCount || 0,
+          requests: requestsCount || 0,
+        })
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error)
+      } finally {
+        setLoading(false)
+      }
     }
-  }
+
+    fetchData()
+  }, [router])
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader size="lg" />
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     )
   }
 
+  const statsData = [
+    {
+      name: 'Total Agents',
+      value: stats.agents.toString(),
+      href: '/client/agents',
+    },
+    {
+      name: 'Total Leads',
+      value: stats.leads.toString(),
+      href: '/client/leads',
+    },
+    {
+      name: 'Requests',
+      value: stats.requests.toString(),
+      href: '/client/requests',
+    },
+  ]
+
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground mt-2 text-sm sm:text-base">
-            Overview of your agents and requests
-          </p>
-        </div>
-        <Link href="/client/requests" className="w-full sm:w-auto">
-          <Button variant="outline" className="w-full sm:w-auto">
-            View Requests
-          </Button>
-        </Link>
+    <div className="flex flex-col h-[calc(100vh-8rem)]">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+        <p className="text-muted-foreground mt-2">
+          Welcome back! Here's an overview of your account.
+        </p>
       </div>
 
-      {/* Stats Grid */}
-      <StatsCardsWithLinks
-        data={[
-          {
-            name: "Active Agents",
-            value: stats.activeAgents.toString(),
-            change: stats.activeAgents > 0 ? "+" + stats.activeAgents : undefined,
-            changeType: stats.activeAgents > 0 ? "positive" : undefined,
-            href: "/client/agents",
-          },
-          {
-            name: "Pending Requests",
-            value: stats.pendingRequests.toString(),
-            change: stats.pendingRequests > 0 ? stats.pendingRequests.toString() : undefined,
-            changeType: stats.pendingRequests > 0 ? "negative" : undefined,
-            href: "/client/requests",
-          },
-          {
-            name: "Total Leads",
-            value: stats.totalLeads.toLocaleString(),
-            change: stats.totalLeads > 0 ? "+" + stats.totalLeads : undefined,
-            changeType: stats.totalLeads > 0 ? "positive" : undefined,
-            href: "/client/leads",
-          },
-          {
-            name: "Recent Leads",
-            value: stats.recentLeads.toString(),
-            change: stats.recentLeads > 0 ? "+" + stats.recentLeads : undefined,
-            changeType: stats.recentLeads > 0 ? "positive" : undefined,
-            href: "/client/leads",
-          },
-        ]}
-      />
-
-      {/* Quick Actions */}
-      <QuickActionCard
-        title="Quick Actions"
-        subtitle="Common tasks and shortcuts"
-        actions={[
-          {
-            icon: <MessageSquare className="h-full w-full" />,
-            label: 'Agents',
-            href: '/client/agents',
-          },
-          {
-            icon: <Clock className="h-full w-full" />,
-            label: 'Requests',
-            href: '/client/requests',
-          },
-          {
-            icon: <CheckCircle className="h-full w-full" />,
-            label: 'Leads',
-            href: '/client/leads',
-          },
-        ]}
-        columns={3}
-      />
+      <div className="flex-1 flex items-end justify-center -mb-6">
+        <StatsCards data={statsData} />
+      </div>
     </div>
   )
 }
-

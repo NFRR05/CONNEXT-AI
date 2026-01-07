@@ -1,39 +1,18 @@
-import { AppSidebar } from '@/components/sidebar'
-import { InfiniteGrid } from '@/components/ui/infinite-grid-integration'
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
+"use client"
 
-export default async function ClientLayout({
+import { Sidebar } from '@/components/sidebar'
+import InfiniteGrid from '@/components/ui/infinite-grid-integration'
+
+export default function ClientLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) {
-    redirect('/login')
-  }
-
-  // Check user role
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  const userRole = profile?.role || 'client'
-
-  // Redirect admin/support users to admin dashboard
-  if (userRole === 'admin' || userRole === 'support') {
-    redirect('/admin/dashboard')
-  }
-
   return (
     <div className="min-h-screen bg-background text-foreground flex relative">
       <InfiniteGrid />
-      <AppSidebar initialRole={userRole as 'client' | 'admin' | 'support'} />
-      <main className="flex-1 ml-0 md:ml-[80px] lg:ml-[80px] min-h-screen transition-all duration-300 ease-in-out p-4 sm:p-6 lg:p-8 relative z-10">
+      <Sidebar />
+      <main className="flex-1 min-h-screen transition-all duration-300 ease-in-out p-4 sm:p-4 lg:p-6 relative z-10">
         {children}
       </main>
     </div>

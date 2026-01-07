@@ -1,78 +1,130 @@
-'use client'
+'use client';
 
-import { useEffect, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { RequestsList, type RequestItem } from '@/components/ui/requests-list'
-import { createClient } from '@/lib/supabase/client'
-import { Plus } from 'lucide-react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import * as React from 'react';
+import {
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+  SortingState,
+  ColumnFiltersState,
+  VisibilityState,
+} from '@tanstack/react-table';
+import { createClient } from '@/lib/supabase/client';
+import {
+  DataGrid,
+  DataGridPagination,
+  DataGridTable,
+  DataGridContainer,
+  DataGridColumnVisibility,
+} from '@/components/ui/data-grid';
+import { columns, AgentRequest } from './columns';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { SlidersHorizontal } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 
 export default function ClientRequestsPage() {
-  const [requests, setRequests] = useState<RequestItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const router = useRouter()
+  const router = useRouter();
+  const [data, setData] = React.useState<AgentRequest[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
+  const [rowSelection, setRowSelection] = React.useState({});
 
-  useEffect(() => {
-    fetchRequests()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  const supabase = createClient();
 
-  const fetchRequests = async () => {
-    try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+  React.useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      if (!user) return
+        if (!user) {
+          router.push('/login');
+          return;
+        }
 
-      const { data, error } = await supabase
-        .from('agent_requests')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
+        const { data: requests, error } = await supabase
+          .from('agent_requests')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
 
-      if (error) throw error
-      setRequests(data || [])
-    } catch (error) {
-      console.error('Error fetching requests:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+        if (error) {
+          console.error('Error fetching requests:', error);
+        } else {
+          setData(requests as any[] || []);
+        }
+      } catch (error) {
+        console.error('Error in requests fetch:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const handleViewRequest = (id: string) => {
-    router.push(`/client/requests/${id}`)
-  }
+    fetchData();
+  }, [router, supabase]);
 
-  if (loading) {
-    return <div className="p-8">Loading requests...</div>
-  }
+  const table = useReactTable({
+    data,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    onSortingChange: setSorting,
+    getSortedRowModel: getSortedRowModel(),
+    onColumnFiltersChange: setColumnFilters,
+    getFilteredRowModel: getFilteredRowModel(),
+    onColumnVisibilityChange: setColumnVisibility,
+    onRowSelectionChange: setRowSelection,
+    state: {
+      sorting,
+      columnFilters,
+      columnVisibility,
+      rowSelection,
+    },
+    initialState: {
+      pagination: {
+        pageSize: 10,
+      },
+    },
+  });
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Agent Requests</h1>
-          <p className="text-muted-foreground mt-2 text-sm sm:text-base">
-            View and manage your agent creation and modification requests
-          </p>
-        </div>
-        <Link href="/client/requests/create" className="w-full sm:w-auto">
-          <Button className="w-full sm:w-auto shadow-lg shadow-primary/20">
-            <Plus className="mr-2 h-4 w-4" />
-            New Request
-          </Button>
-        </Link>
+    <div className="flex flex-col h-full space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Requests</h1>
       </div>
 
-      <RequestsList
-        requests={requests}
-        onViewRequest={handleViewRequest}
-        emptyStateTitle="No requests yet"
-        emptyStateDescription="Create your first agent request to get started"
-        emptyStateActionLabel="Create Request"
-        emptyStateActionHref="/client/requests/create"
-      />
+      <div className="flex flex-col sm:flex-row items-start sm:items-center py-4 gap-2">
+        <Input
+          placeholder="Filter by name..."
+          value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
+          onChange={(event) =>
+            table.getColumn("name")?.setFilterValue(event.target.value)
+          }
+          className="w-full sm:max-w-sm"
+        />
+        <div className="flex items-center gap-2 ml-auto">
+          <DataGridColumnVisibility table={table} trigger={
+            <Button variant="outline" size="sm" className="hidden h-8 lg:flex">
+              <SlidersHorizontal className="mr-2 h-4 w-4" />
+              View
+            </Button>
+          } />
+        </div>
+      </div>
+
+      <DataGridContainer>
+        <DataGrid table={table} recordCount={data.length} isLoading={loading}>
+          <DataGridTable />
+          <DataGridPagination />
+        </DataGrid>
+      </DataGridContainer>
     </div>
-  )
+  );
 }

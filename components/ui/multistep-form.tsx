@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
-import { CheckIcon, ArrowRightIcon } from "lucide-react"
+import { Check, ArrowRight } from "lucide-react"
 
 export type Step = {
   id: number
@@ -100,7 +100,7 @@ export function MultiStepForm({
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(120,119,198,0.1),transparent_50%)]" />
           <div className="relative flex flex-col items-center gap-4 animate-in fade-in zoom-in-95 duration-700">
             <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-foreground/10 bg-foreground/5">
-              <CheckIcon
+              <Check
                 className="h-8 w-8 text-foreground animate-in zoom-in duration-500 delay-200"
                 strokeWidth={2.5}
               />
@@ -132,7 +132,7 @@ export function MultiStepForm({
               )}
             >
               {index < currentStep ? (
-                <CheckIcon className="h-4 w-4 animate-in zoom-in duration-500" strokeWidth={2.5} />
+                <Check className="h-4 w-4 animate-in zoom-in duration-500" strokeWidth={2.5} />
               ) : (
                 <span className="text-sm font-medium tabular-nums">{step.id}</span>
               )}
@@ -231,7 +231,7 @@ export function MultiStepForm({
                 ? submitLabel
                 : "Continue"}
             {!loading && (
-              <ArrowRightIcon
+              <ArrowRight
                 className="h-4 w-4 transition-transform group-hover:translate-x-0.5 duration-300"
                 strokeWidth={2}
               />
